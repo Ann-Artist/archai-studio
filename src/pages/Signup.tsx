@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,12 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Box, Mail, Lock, User, ArrowRight, Eye, EyeOff, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+
+type AppRole = "architect" | "designer" | "client";
 
 const Signup = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    role: "",
+    role: "" as AppRole | "",
     password: "",
     confirmPassword: "",
   });
@@ -19,6 +22,14 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signUp, user } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,17 +43,49 @@ const Signup = () => {
       return;
     }
 
+    if (!formData.role) {
+      toast({
+        title: "Role required",
+        description: "Please select your role.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
-    // Simulate signup - will be replaced with actual auth
-    setTimeout(() => {
+    const { error } = await signUp(
+      formData.email,
+      formData.password,
+      formData.name,
+      formData.role as AppRole
+    );
+
+    if (error) {
       toast({
-        title: "Account created!",
-        description: "Welcome to AI-in Architecture.",
+        title: "Signup failed",
+        description: error.message,
+        variant: "destructive",
       });
-      navigate("/dashboard");
       setIsLoading(false);
-    }, 1000);
+      return;
+    }
+
+    toast({
+      title: "Account created!",
+      description: "Welcome to AI-in Architecture.",
+    });
+    navigate("/dashboard");
+    setIsLoading(false);
   };
 
   return (
@@ -100,6 +143,7 @@ const Signup = () => {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="pl-10"
                   required
+                  maxLength={100}
                 />
               </div>
             </div>
@@ -116,6 +160,7 @@ const Signup = () => {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="pl-10"
                   required
+                  maxLength={255}
                 />
               </div>
             </div>
@@ -126,17 +171,15 @@ const Signup = () => {
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground z-10" />
                 <Select
                   value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                  onValueChange={(value) => setFormData({ ...formData, role: value as AppRole })}
                 >
                   <SelectTrigger className="pl-10">
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="architect">Architect / Designer</SelectItem>
-                    <SelectItem value="engineer">Engineer</SelectItem>
+                    <SelectItem value="designer">Interior Designer</SelectItem>
                     <SelectItem value="client">Client / Owner</SelectItem>
-                    <SelectItem value="contractor">Contractor</SelectItem>
-                    <SelectItem value="student">Student</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -154,7 +197,7 @@ const Signup = () => {
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="pl-10 pr-10"
                   required
-                  minLength={8}
+                  minLength={6}
                 />
                 <button
                   type="button"

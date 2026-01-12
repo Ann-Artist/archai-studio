@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -26,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/hooks/useAuth";
 
 const stats = [
   { label: "Total Projects", value: "12", icon: FolderOpen, change: "+2 this month", color: "blueprint" },
@@ -63,6 +64,42 @@ const recentProjects = [
 
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user, profile, role, signOut, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate("/login");
+    }
+  }, [user, isLoading, navigate]);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login");
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const getRoleLabel = (role: string | null) => {
+    switch (role) {
+      case "architect":
+        return "Architect";
+      case "designer":
+        return "Designer";
+      case "client":
+        return "Client";
+      default:
+        return "User";
+    }
+  };
 
   const sidebarItems = [
     { icon: Home, label: "Dashboard", href: "/dashboard", active: true },
@@ -74,6 +111,23 @@ const Dashboard = () => {
     { icon: Users, label: "Team", href: "/team" },
     { icon: Settings, label: "Settings", href: "/settings" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-blueprint/30 border-t-blueprint rounded-full animate-spin" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const displayName = profile?.full_name || user.email?.split("@")[0] || "User";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -117,13 +171,15 @@ const Dashboard = () => {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-sidebar-accent/50 transition-colors">
                 <div className="w-8 h-8 rounded-full bg-blueprint-gradient flex items-center justify-center text-white font-medium text-sm">
-                  JA
+                  {getInitials(displayName)}
                 </div>
                 {sidebarOpen && (
                   <>
                     <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-sidebar-foreground">John Architect</p>
-                      <p className="text-xs text-sidebar-foreground/60">Architect</p>
+                      <p className="text-sm font-medium text-sidebar-foreground truncate max-w-[120px]">
+                        {displayName}
+                      </p>
+                      <p className="text-xs text-sidebar-foreground/60">{getRoleLabel(role)}</p>
                     </div>
                     <ChevronDown className="w-4 h-4 text-sidebar-foreground/60" />
                   </>
@@ -136,7 +192,7 @@ const Dashboard = () => {
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
+              <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </DropdownMenuItem>
@@ -178,7 +234,7 @@ const Dashboard = () => {
           {/* Welcome Section */}
           <div className="mb-8">
             <h1 className="font-display text-2xl font-bold text-foreground mb-1">
-              Welcome back, John! 👋
+              Welcome back, {displayName.split(" ")[0]}! 👋
             </h1>
             <p className="text-muted-foreground">
               Here's what's happening with your projects today.
