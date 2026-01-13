@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,39 +12,42 @@ serve(async (req) => {
   }
 
   try {
-    const { plotSize, rooms, style, additionalNotes } = await req.json();
+    const { plotSize, rooms, style, additionalNotes, userId } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are an expert architectural floor plan designer. Your task is to create detailed, professional floor plan layouts based on user specifications.
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-When generating a floor plan, provide:
-1. A detailed ASCII representation of the floor plan layout
-2. Room dimensions and areas in square feet/meters
-3. Key features and placements (doors, windows, furniture suggestions)
-4. Design rationale explaining your choices
-5. Optimization tips for the space
+    // Build detailed prompt for floor plan image generation
+    const roomsList = rooms.map((room: { name: string; size: string; priority: string }) => 
+      `${room.name} (${room.size} size, ${room.priority})`
+    ).join(", ");
 
-Format your response as a structured layout with clear sections. Use box-drawing characters for the ASCII floor plan.`;
+    const prompt = `Create a professional 2D architectural floor plan blueprint image. 
+    
+Specifications:
+- Plot size: ${plotSize.width} x ${plotSize.length} ${plotSize.unit}
+- Rooms: ${roomsList}
+- Style: ${style}
+${additionalNotes ? `- Additional requirements: ${additionalNotes}` : ""}
 
-    const userPrompt = `Please design a floor plan with the following specifications:
+The floor plan should:
+- Be a clean, professional top-down 2D architectural blueprint
+- Show room layouts with walls, doors, and windows clearly marked
+- Include room labels with dimensions
+- Use a blue/white blueprint color scheme
+- Show furniture placement suggestions
+- Include a scale indicator
+- Look like a professional architect's floor plan drawing`;
 
-**Plot Size:** ${plotSize.width} x ${plotSize.length} ${plotSize.unit} (Total: ${plotSize.width * plotSize.length} sq ${plotSize.unit})
+    console.log("Generating floor plan image with prompt:", prompt);
 
-**Rooms Required:**
-${rooms.map((room: { name: string; size: string; priority: string }) => 
-  `- ${room.name}: ${room.size} size, ${room.priority} priority`
-).join('\n')}
-
-**Style Preference:** ${style}
-
-**Additional Notes:** ${additionalNotes || 'None'}
-
-Please create a comprehensive floor plan layout with the ASCII representation, dimensions, and design rationale.`;
-
+    // Use Gemini image generation model
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -51,12 +55,11 @@ Please create a comprehensive floor plan layout with the ASCII representation, d
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash-image",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: "user", content: prompt }
         ],
-        stream: true,
+        modalities: ["image", "text"],
       }),
     });
 
@@ -75,15 +78,83 @@ Please create a comprehensive floor plan layout with the ASCII representation, d
       }
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "Failed to generate floor plan" }), {
+      return new Response(JSON.stringify({ error: "Failed to generate floor plan image" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+    const data = await response.json();
+    console.log("AI response received");
+
+    // Extract image from response
+    const message = data.choices?.[0]?.message;
+    const imageData = message?.images?.[0]?.image_url?.url;
+    const textContent = message?.content || "";
+
+    if (!imageData) {
+      console.error("No image in response:", JSON.stringify(data));
+      return new Response(JSON.stringify({ error: "No image generated. Please try again." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Extract base64 data from data URL
+    const base64Match = imageData.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!base64Match) {
+      console.error("Invalid image data format");
+      return new Response(JSON.stringify({ error: "Invalid image format received" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const imageType = base64Match[1];
+    const base64Data = base64Match[2];
+    
+    // Convert base64 to Uint8Array
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const fileName = `${userId}/${timestamp}-floor-plan.${imageType}`;
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("floor-plans")
+      .upload(fileName, bytes, {
+        contentType: `image/${imageType}`,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError);
+      return new Response(JSON.stringify({ error: "Failed to save floor plan image" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from("floor-plans")
+      .getPublicUrl(fileName);
+
+    console.log("Floor plan saved:", publicUrlData.publicUrl);
+
+    return new Response(JSON.stringify({ 
+      imageUrl: publicUrlData.publicUrl,
+      description: textContent,
+      fileName: fileName
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
   } catch (error) {
     console.error("Error in generate-floor-plan:", error);
     return new Response(
