@@ -10,7 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, X, Sparkles, Loader2, Home, Maximize2 } from "lucide-react";
+import { Plus, X, Sparkles, Loader2, Home, Maximize2, Download, ZoomIn } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface Room {
   id: string;
@@ -23,6 +28,12 @@ interface PlotSize {
   width: number;
   length: number;
   unit: "feet" | "meters";
+}
+
+interface GeneratedPlan {
+  imageUrl: string;
+  description: string;
+  fileName: string;
 }
 
 const STYLE_OPTIONS = [
@@ -54,7 +65,7 @@ export default function FloorPlanGenerator() {
   const [style, setStyle] = useState("modern-minimalist");
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedPlan, setGeneratedPlan] = useState("");
+  const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlan | null>(null);
   const [newRoomName, setNewRoomName] = useState("");
 
   const addRoom = () => {
@@ -86,8 +97,13 @@ export default function FloorPlanGenerator() {
       return;
     }
 
+    if (!user) {
+      toast.error("Please log in to generate floor plans");
+      return;
+    }
+
     setIsGenerating(true);
-    setGeneratedPlan("");
+    setGeneratedPlan(null);
 
     try {
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-floor-plan`, {
@@ -101,6 +117,7 @@ export default function FloorPlanGenerator() {
           rooms: rooms.map(({ name, size, priority }) => ({ name, size, priority })),
           style: STYLE_OPTIONS.find((s) => s.value === style)?.label || style,
           additionalNotes,
+          userId: user.id,
         }),
       });
 
@@ -109,53 +126,34 @@ export default function FloorPlanGenerator() {
         throw new Error(errorData.error || "Failed to generate floor plan");
       }
 
-      if (!response.body) {
-        throw new Error("No response body");
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullContent = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-          let line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              fullContent += content;
-              setGeneratedPlan(fullContent);
-            }
-          } catch {
-            buffer = line + "\n" + buffer;
-            break;
-          }
-        }
-      }
-
+      const data = await response.json();
+      setGeneratedPlan(data);
       toast.success("Floor plan generated successfully!");
     } catch (error) {
       console.error("Error generating floor plan:", error);
       toast.error(error instanceof Error ? error.message : "Failed to generate floor plan");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const downloadImage = async () => {
+    if (!generatedPlan?.imageUrl) return;
+    
+    try {
+      const response = await fetch(generatedPlan.imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `floor-plan-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Floor plan downloaded!");
+    } catch {
+      toast.error("Failed to download image");
     }
   };
 
@@ -189,7 +187,7 @@ export default function FloorPlanGenerator() {
               </h1>
             </div>
             <p className="text-muted-foreground">
-              Enter your specifications and let AI create optimized floor plan layouts for your project.
+              Enter your specifications and let AI create professional floor plan images for your project.
             </p>
           </div>
 
@@ -374,7 +372,7 @@ export default function FloorPlanGenerator() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Generating...
+                    Generating Image...
                   </>
                 ) : (
                   <>
@@ -392,32 +390,65 @@ export default function FloorPlanGenerator() {
                   <div className="flex items-center justify-between">
                     <CardTitle>Generated Floor Plan</CardTitle>
                     {generatedPlan && (
-                      <Badge variant="secondary" className="bg-success/10 text-success">
-                        Complete
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="bg-success/10 text-success">
+                          Complete
+                        </Badge>
+                        <Button variant="outline" size="sm" onClick={downloadImage}>
+                          <Download className="h-4 w-4 mr-1" />
+                          Download
+                        </Button>
+                      </div>
                     )}
                   </div>
                   <CardDescription>
                     {isGenerating
-                      ? "AI is designing your floor plan..."
+                      ? "AI is designing your floor plan image..."
                       : generatedPlan
                       ? "Your floor plan is ready"
                       : "Fill in the form and click generate"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {isGenerating && !generatedPlan && (
+                  {isGenerating && (
                     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                       <Loader2 className="h-12 w-12 animate-spin text-blueprint mb-4" />
-                      <p>Analyzing specifications...</p>
+                      <p>Creating your floor plan image...</p>
+                      <p className="text-sm mt-2">This may take up to 30 seconds</p>
                     </div>
                   )}
                   
                   {generatedPlan ? (
-                    <div className="prose prose-sm max-w-none dark:prose-invert">
-                      <pre className="whitespace-pre-wrap text-xs bg-muted/50 p-4 rounded-lg overflow-x-auto font-mono leading-relaxed">
-                        {generatedPlan}
-                      </pre>
+                    <div className="space-y-4">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <div className="relative group cursor-pointer rounded-lg overflow-hidden border border-border">
+                            <img 
+                              src={generatedPlan.imageUrl} 
+                              alt="Generated Floor Plan" 
+                              className="w-full h-auto"
+                            />
+                            <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 rounded-full p-3">
+                                <ZoomIn className="h-6 w-6 text-foreground" />
+                              </div>
+                            </div>
+                          </div>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl w-full">
+                          <img 
+                            src={generatedPlan.imageUrl} 
+                            alt="Generated Floor Plan - Full Size" 
+                            className="w-full h-auto rounded-lg"
+                          />
+                        </DialogContent>
+                      </Dialog>
+                      
+                      {generatedPlan.description && (
+                        <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
+                          <p className="text-sm text-muted-foreground">{generatedPlan.description}</p>
+                        </div>
+                      )}
                     </div>
                   ) : !isGenerating ? (
                     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
@@ -425,7 +456,7 @@ export default function FloorPlanGenerator() {
                         <Home className="h-12 w-12" />
                       </div>
                       <p className="text-center">
-                        Your AI-generated floor plan will appear here
+                        Your AI-generated floor plan image will appear here
                       </p>
                     </div>
                   ) : null}
