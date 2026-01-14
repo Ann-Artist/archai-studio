@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, X, Sparkles, Loader2, Home, Maximize2, Download, ZoomIn } from "lucide-react";
+import { Plus, X, Sparkles, Loader2, Home, Maximize2, Download, ZoomIn, Box } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,10 +30,23 @@ interface PlotSize {
   unit: "feet" | "meters";
 }
 
+interface RoomCoordinates {
+  name: string;
+  width: number;
+  depth: number;
+  height: number;
+  position: [number, number, number];
+  color: string;
+}
+
 interface GeneratedPlan {
   imageUrl: string;
   description: string;
   fileName: string;
+  projectId?: string;
+  rooms?: RoomCoordinates[];
+  plotWidth?: number;
+  plotDepth?: number;
 }
 
 const STYLE_OPTIONS = [
@@ -154,6 +167,21 @@ export default function FloorPlanGenerator() {
       toast.success("Floor plan downloaded!");
     } catch {
       toast.error("Failed to download image");
+    }
+  };
+
+  const viewIn3D = () => {
+    if (generatedPlan?.projectId) {
+      navigate(`/3d-preview?project=${generatedPlan.projectId}`);
+    } else if (generatedPlan?.rooms) {
+      // Pass data via state if no project ID
+      navigate("/3d-preview", { 
+        state: { 
+          rooms: generatedPlan.rooms, 
+          plotWidth: generatedPlan.plotWidth,
+          plotDepth: generatedPlan.plotDepth 
+        } 
+      });
     }
   };
 
@@ -394,10 +422,6 @@ export default function FloorPlanGenerator() {
                         <Badge variant="secondary" className="bg-success/10 text-success">
                           Complete
                         </Badge>
-                        <Button variant="outline" size="sm" onClick={downloadImage}>
-                          <Download className="h-4 w-4 mr-1" />
-                          Download
-                        </Button>
                       </div>
                     )}
                   </div>
@@ -439,27 +463,57 @@ export default function FloorPlanGenerator() {
                           <img 
                             src={generatedPlan.imageUrl} 
                             alt="Generated Floor Plan - Full Size" 
-                            className="w-full h-auto rounded-lg"
+                            className="w-full h-auto"
                           />
                         </DialogContent>
                       </Dialog>
-                      
+
                       {generatedPlan.description && (
-                        <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
-                          <p className="text-sm text-muted-foreground">{generatedPlan.description}</p>
+                        <p className="text-sm text-muted-foreground">{generatedPlan.description}</p>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={downloadImage} className="flex-1">
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        {(generatedPlan.projectId || generatedPlan.rooms) && (
+                          <Button 
+                            size="sm" 
+                            onClick={viewIn3D} 
+                            className="flex-1 bg-blueprint-gradient hover:opacity-90"
+                          >
+                            <Box className="h-4 w-4 mr-2" />
+                            View in 3D
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Room coordinates info */}
+                      {generatedPlan.rooms && generatedPlan.rooms.length > 0 && (
+                        <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
+                          <p className="text-xs text-muted-foreground mb-2">
+                            3D coordinates generated for {generatedPlan.rooms.length} rooms
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {generatedPlan.rooms.map((room, i) => (
+                              <Badge key={i} variant="secondary" className="text-xs">
+                                {room.name}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
-                  ) : !isGenerating ? (
+                  ) : !isGenerating && (
                     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                      <div className="p-4 rounded-full bg-muted/50 mb-4">
-                        <Home className="h-12 w-12" />
+                      <div className="p-4 rounded-full bg-muted mb-4">
+                        <Home className="h-8 w-8" />
                       </div>
-                      <p className="text-center">
-                        Your AI-generated floor plan image will appear here
-                      </p>
+                      <p className="text-center">Your generated floor plan will appear here</p>
                     </div>
-                  ) : null}
+                  )}
                 </CardContent>
               </Card>
             </div>
