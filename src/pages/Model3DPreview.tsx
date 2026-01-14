@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,17 @@ import {
   Box,
   Eye,
   Grid3X3,
-  Settings2
+  Settings2,
+  Loader2,
+  FolderOpen
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import FloorPlan3D from "@/components/3d/FloorPlan3D";
 import RoomConfigurator from "@/components/3d/RoomConfigurator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface RoomConfig {
   name: string;
@@ -26,6 +31,16 @@ interface RoomConfig {
   height: number;
   position: [number, number, number];
   color: string;
+}
+
+interface FloorPlanProject {
+  id: string;
+  name: string;
+  plot_width: number;
+  plot_depth: number;
+  rooms: RoomConfig[];
+  image_url: string | null;
+  created_at: string;
 }
 
 const defaultRooms: RoomConfig[] = [
@@ -38,15 +53,126 @@ const defaultRooms: RoomConfig[] = [
 ];
 
 const Model3DPreview = () => {
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const { user } = useAuth();
+  
   const [rooms, setRooms] = useState<RoomConfig[]>(defaultRooms);
   const [plotWidth, setPlotWidth] = useState(20);
   const [plotDepth, setPlotDepth] = useState(16);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [projects, setProjects] = useState<FloorPlanProject[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [currentProjectName, setCurrentProjectName] = useState<string>("");
+
+  // Load project from URL param or navigation state
+  useEffect(() => {
+    const projectId = searchParams.get("project");
+    const navigationState = location.state as { 
+      rooms?: RoomConfig[]; 
+      plotWidth?: number; 
+      plotDepth?: number 
+    } | null;
+
+    if (navigationState?.rooms) {
+      // Load from navigation state (direct from generator)
+      setRooms(navigationState.rooms);
+      if (navigationState.plotWidth) setPlotWidth(navigationState.plotWidth);
+      if (navigationState.plotDepth) setPlotDepth(navigationState.plotDepth);
+      setCurrentProjectName("Generated Floor Plan");
+    } else if (projectId) {
+      loadProject(projectId);
+    }
+  }, [searchParams, location.state]);
+
+  // Load user's projects
+  useEffect(() => {
+    if (user) {
+      loadProjects();
+    }
+  }, [user]);
+
+  const loadProjects = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("floor_plan_projects")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to load projects:", error);
+      return;
+    }
+
+    // Transform the data to ensure rooms is properly typed
+    const transformedProjects: FloorPlanProject[] = (data || []).map((project) => ({
+      id: project.id,
+      name: project.name,
+      plot_width: Number(project.plot_width),
+      plot_depth: Number(project.plot_depth),
+      rooms: Array.isArray(project.rooms) ? (project.rooms as unknown as RoomConfig[]) : [],
+      image_url: project.image_url,
+      created_at: project.created_at
+    }));
+
+    setProjects(transformedProjects);
+  };
+
+  const loadProject = async (projectId: string) => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("floor_plan_projects")
+        .select("*")
+        .eq("id", projectId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        toast.error("Project not found");
+        return;
+      }
+
+      // Transform rooms data
+      const roomsData = Array.isArray(data.rooms) ? (data.rooms as unknown as RoomConfig[]) : [];
+      
+      setRooms(roomsData);
+      setPlotWidth(Number(data.plot_width));
+      setPlotDepth(Number(data.plot_depth));
+      setSelectedProjectId(projectId);
+      setCurrentProjectName(data.name);
+      
+      toast.success(`Loaded: ${data.name}`);
+    } catch (error) {
+      console.error("Failed to load project:", error);
+      toast.error("Failed to load project");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProjectSelect = (projectId: string) => {
+    if (projectId === "default") {
+      setRooms(defaultRooms);
+      setPlotWidth(20);
+      setPlotDepth(16);
+      setSelectedProjectId("");
+      setCurrentProjectName("");
+      toast.success("Loaded default layout");
+    } else {
+      loadProject(projectId);
+    }
+  };
 
   const handleReset = () => {
     setRooms(defaultRooms);
     setPlotWidth(20);
     setPlotDepth(16);
+    setSelectedProjectId("");
+    setCurrentProjectName("");
     toast.success("Scene reset to defaults");
   };
 
@@ -74,6 +200,14 @@ const Model3DPreview = () => {
 
   const totalArea = rooms.reduce((acc, room) => acc + room.width * room.depth, 0);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -88,7 +222,12 @@ const Model3DPreview = () => {
               </Button>
               <div className="flex items-center gap-2">
                 <Box className="w-6 h-6 text-blueprint" />
-                <h1 className="text-xl font-display font-bold">3D Model Preview</h1>
+                <div>
+                  <h1 className="text-xl font-display font-bold">3D Model Preview</h1>
+                  {currentProjectName && (
+                    <p className="text-xs text-muted-foreground">{currentProjectName}</p>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -156,7 +295,7 @@ const Model3DPreview = () => {
               </Card>
               <Card className="bg-amber-500/10 border-amber-500/20">
                 <CardContent className="py-4 text-center">
-                  <p className="text-2xl font-bold text-amber-600">{plotWidth * plotDepth}m²</p>
+                  <p className="text-2xl font-bold text-amber-600">{(plotWidth * plotDepth).toFixed(0)}m²</p>
                   <p className="text-sm text-muted-foreground">Plot Size</p>
                 </CardContent>
               </Card>
@@ -165,17 +304,91 @@ const Model3DPreview = () => {
 
           {/* Controls Panel */}
           <div className="lg:col-span-1">
-            <Tabs defaultValue="rooms" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="rooms" className="gap-2">
-                  <Grid3X3 className="w-4 h-4" />
+            <Tabs defaultValue="projects" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="projects" className="gap-1 text-xs">
+                  <FolderOpen className="w-3 h-3" />
+                  Projects
+                </TabsTrigger>
+                <TabsTrigger value="rooms" className="gap-1 text-xs">
+                  <Grid3X3 className="w-3 h-3" />
                   Rooms
                 </TabsTrigger>
-                <TabsTrigger value="settings" className="gap-2">
-                  <Settings2 className="w-4 h-4" />
+                <TabsTrigger value="settings" className="gap-1 text-xs">
+                  <Settings2 className="w-3 h-3" />
                   Plot
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="projects" className="mt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Saved Floor Plans</CardTitle>
+                    <CardDescription>Load a previously generated floor plan</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {user ? (
+                      <>
+                        <Select value={selectedProjectId || "default"} onValueChange={handleProjectSelect}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a floor plan" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Default Layout</SelectItem>
+                            {projects.map((project) => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {projects.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No saved floor plans yet. Generate one from the Floor Plan Generator!
+                          </p>
+                        )}
+
+                        {projects.length > 0 && (
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {projects.map((project) => (
+                              <div 
+                                key={project.id}
+                                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                                  selectedProjectId === project.id 
+                                    ? "border-blueprint bg-blueprint/10" 
+                                    : "border-border hover:bg-muted/50"
+                                }`}
+                                onClick={() => handleProjectSelect(project.id)}
+                              >
+                                <p className="font-medium text-sm">{project.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {project.rooms?.length || 0} rooms • {new Date(project.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <Button asChild className="w-full" variant="outline">
+                          <Link to="/floor-plan-generator">
+                            Generate New Floor Plan
+                          </Link>
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Log in to view and load your saved floor plans
+                        </p>
+                        <Button asChild variant="outline">
+                          <Link to="/login">Log In</Link>
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
               
               <TabsContent value="rooms" className="mt-4">
                 <Card>
