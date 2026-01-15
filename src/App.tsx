@@ -10,6 +10,10 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import FloorPlanGenerator from "./pages/FloorPlanGenerator";
 import Model3DPreview from "./pages/Model3DPreview";
+import Projects from "./pages/Projects";
+import CostEstimator from "./pages/CostEstimator";
+import Reports from "./pages/Reports";
+import Team from "./pages/Team";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +32,10 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/floor-plan-generator" element={<FloorPlanGenerator />} />
             <Route path="/3d-preview" element={<Model3DPreview />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/cost-estimator" element={<CostEstimator />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/team" element={<Team />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

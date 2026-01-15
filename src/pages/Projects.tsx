@@ -2,22 +2,26 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Box, 
-  LayoutGrid, 
-  FolderOpen, 
-  Settings, 
-  LogOut, 
-  Search, 
-  Plus, 
-  Bell, 
+import {
+  Box,
+  LayoutGrid,
+  FolderOpen,
+  Settings,
+  LogOut,
+  Search,
+  Plus,
+  Bell,
   ChevronDown,
   Home,
   Calculator,
   FileText,
   Users,
-  TrendingUp,
-  Clock
+  Clock,
+  MoreVertical,
+  Eye,
+  Trash2,
+  Edit,
+  Filter,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
 interface FloorPlanProject {
@@ -35,25 +40,29 @@ interface FloorPlanProject {
   name: string;
   plot_width: number;
   plot_depth: number;
+  rooms: unknown;
+  image_url: string | null;
   style: string | null;
+  notes: string | null;
+  created_at: string;
   updated_at: string;
 }
 
-const Dashboard = () => {
+const Projects = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projects, setProjects] = useState<FloorPlanProject[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const { user, profile, role, signOut, isLoading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!isLoading && !user) {
       navigate("/login");
     }
   }, [user, isLoading, navigate]);
 
-  // Fetch projects from database
   useEffect(() => {
     if (user) {
       fetchProjects();
@@ -64,25 +73,46 @@ const Dashboard = () => {
     try {
       const { data, error } = await supabase
         .from("floor_plan_projects")
-        .select("id, name, plot_width, plot_depth, style, updated_at")
-        .order("updated_at", { ascending: false })
-        .limit(5);
+        .select("*")
+        .order("updated_at", { ascending: false });
 
       if (error) throw error;
       setProjects(data || []);
     } catch (error) {
       console.error("Error fetching projects:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load projects",
+        variant: "destructive",
+      });
     } finally {
-      setProjectsLoading(false);
+      setLoading(false);
     }
   };
 
-  const stats = [
-    { label: "Total Projects", value: String(projects.length), icon: FolderOpen, change: "Your floor plans", color: "blueprint" },
-    { label: "Floor Plans", value: String(projects.length), icon: LayoutGrid, change: "Generated", color: "accent" },
-    { label: "Cost Estimates", value: "—", icon: Calculator, change: "Coming soon", color: "success" },
-    { label: "Reports Generated", value: "—", icon: FileText, change: "Coming soon", color: "blueprint" },
-  ];
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      const { error } = await supabase
+        .from("floor_plan_projects")
+        .delete()
+        .eq("id", projectId);
+
+      if (error) throw error;
+
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      toast({
+        title: "Success",
+        description: "Project deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -112,8 +142,8 @@ const Dashboard = () => {
   };
 
   const sidebarItems = [
-    { icon: Home, label: "Dashboard", href: "/dashboard", active: true },
-    { icon: FolderOpen, label: "Projects", href: "/projects" },
+    { icon: Home, label: "Dashboard", href: "/dashboard" },
+    { icon: FolderOpen, label: "Projects", href: "/projects", active: true },
     { icon: LayoutGrid, label: "Floor Plan Generator", href: "/floor-plan-generator" },
     { icon: Box, label: "3D Model Preview", href: "/3d-preview" },
     { icon: Calculator, label: "Cost Estimator", href: "/cost-estimator" },
@@ -121,6 +151,10 @@ const Dashboard = () => {
     { icon: Users, label: "Team", href: "/team" },
     { icon: Settings, label: "Settings", href: "/settings" },
   ];
+
+  const filteredProjects = projects.filter((project) =>
+    project.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (isLoading) {
     return (
@@ -142,8 +176,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col`}>
-        {/* Logo */}
+      <aside className={`${sidebarOpen ? "w-64" : "w-20"} bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col`}>
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-10 h-10 rounded-xl bg-blueprint-gradient flex items-center justify-center">
@@ -157,7 +190,6 @@ const Dashboard = () => {
           </Link>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">
           {sidebarItems.map((item) => (
             <Link
@@ -165,8 +197,8 @@ const Dashboard = () => {
               to={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200 ${
                 item.active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               }`}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -175,7 +207,6 @@ const Dashboard = () => {
           ))}
         </nav>
 
-        {/* User Section */}
         <div className="p-4 border-t border-sidebar-border">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -213,7 +244,6 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col">
-        {/* Top Bar */}
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -221,8 +251,14 @@ const Dashboard = () => {
               <Input
                 placeholder="Search projects..."
                 className="pl-9 w-64 bg-background"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            <Button variant="outline" size="sm">
+              <Filter className="w-4 h-4 mr-2" />
+              Filter
+            </Button>
           </div>
 
           <div className="flex items-center gap-4">
@@ -231,7 +267,7 @@ const Dashboard = () => {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full" />
             </Button>
             <Button variant="accent" asChild>
-              <Link to="/projects/new">
+              <Link to="/floor-plan-generator">
                 <Plus className="w-4 h-4" />
                 New Project
               </Link>
@@ -239,106 +275,135 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {/* Dashboard Content */}
         <div className="flex-1 p-6 overflow-auto">
-          {/* Welcome Section */}
           <div className="mb-8">
             <h1 className="font-display text-2xl font-bold text-foreground mb-1">
-              Welcome back, {displayName.split(" ")[0]}! 👋
+              Projects
             </h1>
             <p className="text-muted-foreground">
-              Here's what's happening with your projects today.
+              Manage all your floor plan projects
             </p>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="p-6 rounded-2xl bg-card border border-border hover:shadow-lg transition-shadow duration-300"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`w-12 h-12 rounded-xl bg-${stat.color}/10 flex items-center justify-center`}>
-                    <stat.icon className={`w-6 h-6 text-${stat.color}`} />
-                  </div>
-                  <TrendingUp className="w-4 h-4 text-success" />
-                </div>
-                <div className="font-display text-3xl font-bold text-foreground mb-1">
-                  {stat.value}
-                </div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-                <div className="text-xs text-muted-foreground/70 mt-1">{stat.change}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Recent Projects */}
-          <div className="bg-card rounded-2xl border border-border p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display text-xl font-semibold text-foreground">
-                Recent Projects
-              </h2>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/projects">View all</Link>
-              </Button>
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="w-10 h-10 border-4 border-blueprint/30 border-t-blueprint rounded-full animate-spin" />
             </div>
-
-            {projectsLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="w-8 h-8 border-4 border-blueprint/30 border-t-blueprint rounded-full animate-spin" />
-              </div>
-            ) : projects.length === 0 ? (
-              <div className="text-center py-8">
-                <FolderOpen className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="text-muted-foreground mb-4">No projects yet</p>
+          ) : filteredProjects.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center">
+              <FolderOpen className="w-16 h-16 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {searchQuery ? "No projects found" : "No projects yet"}
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                {searchQuery
+                  ? "Try a different search term"
+                  : "Create your first floor plan to get started"}
+              </p>
+              {!searchQuery && (
                 <Button variant="accent" asChild>
                   <Link to="/floor-plan-generator">
                     <Plus className="w-4 h-4" />
-                    Create Your First Floor Plan
+                    Create Floor Plan
                   </Link>
                 </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {projects.map((project) => (
-                  <Link
-                    key={project.id}
-                    to={`/3d-preview?projectId=${project.id}`}
-                    className="flex items-center justify-between p-4 rounded-xl bg-background border border-border hover:border-blueprint/50 transition-colors duration-200 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-blueprint/10 flex items-center justify-center">
-                        <LayoutGrid className="w-6 h-6 text-blueprint" />
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredProjects.map((project) => (
+                <div
+                  key={project.id}
+                  className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-shadow duration-300 group"
+                >
+                  <div className="aspect-video bg-muted relative overflow-hidden">
+                    {project.image_url ? (
+                      <img
+                        src={project.image_url}
+                        alt={project.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <LayoutGrid className="w-12 h-12 text-muted-foreground/50" />
                       </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          navigate(`/3d-preview?projectId=${project.id}`)
+                        }
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        View 3D
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h3 className="font-medium text-foreground">{project.name}</h3>
+                        <h3 className="font-medium text-foreground line-clamp-1">
+                          {project.name}
+                        </h3>
                         <p className="text-sm text-muted-foreground">
                           {project.plot_width}m × {project.plot_depth}m
                         </p>
                       </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              navigate(`/3d-preview?projectId=${project.id}`)
+                            }
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View 3D
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => handleDeleteProject(project.id)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                      {project.style && (
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blueprint/10 text-blueprint">
-                          {project.style}
-                        </span>
-                      )}
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
-                      </div>
+                    {project.style && (
+                      <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blueprint/10 text-blueprint mb-2">
+                        {project.style}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      {formatDistanceToNow(new Date(project.updated_at), {
+                        addSuffix: true,
+                      })}
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>
   );
 };
 
-export default Dashboard;
+export default Projects;
