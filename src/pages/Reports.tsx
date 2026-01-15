@@ -2,22 +2,23 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-  Box, 
-  LayoutGrid, 
-  FolderOpen, 
-  Settings, 
-  LogOut, 
-  Search, 
-  Plus, 
-  Bell, 
+import {
+  Box,
+  LayoutGrid,
+  FolderOpen,
+  Settings,
+  LogOut,
+  Search,
+  Bell,
   ChevronDown,
   Home,
   Calculator,
   FileText,
   Users,
-  TrendingUp,
-  Clock
+  Download,
+  FileSpreadsheet,
+  FileImage,
+  Clock,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,24 +37,23 @@ interface FloorPlanProject {
   plot_width: number;
   plot_depth: number;
   style: string | null;
+  created_at: string;
   updated_at: string;
 }
 
-const Dashboard = () => {
+const Reports = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projects, setProjects] = useState<FloorPlanProject[]>([]);
-  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const { user, profile, role, signOut, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!isLoading && !user) {
       navigate("/login");
     }
   }, [user, isLoading, navigate]);
 
-  // Fetch projects from database
   useEffect(() => {
     if (user) {
       fetchProjects();
@@ -62,27 +62,15 @@ const Dashboard = () => {
 
   const fetchProjects = async () => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("floor_plan_projects")
-        .select("id, name, plot_width, plot_depth, style, updated_at")
-        .order("updated_at", { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
+        .select("id, name, plot_width, plot_depth, style, created_at, updated_at")
+        .order("updated_at", { ascending: false });
       setProjects(data || []);
-    } catch (error) {
-      console.error("Error fetching projects:", error);
     } finally {
-      setProjectsLoading(false);
+      setLoading(false);
     }
   };
-
-  const stats = [
-    { label: "Total Projects", value: String(projects.length), icon: FolderOpen, change: "Your floor plans", color: "blueprint" },
-    { label: "Floor Plans", value: String(projects.length), icon: LayoutGrid, change: "Generated", color: "accent" },
-    { label: "Cost Estimates", value: "—", icon: Calculator, change: "Coming soon", color: "success" },
-    { label: "Reports Generated", value: "—", icon: FileText, change: "Coming soon", color: "blueprint" },
-  ];
 
   const handleLogout = async () => {
     await signOut();
@@ -112,14 +100,35 @@ const Dashboard = () => {
   };
 
   const sidebarItems = [
-    { icon: Home, label: "Dashboard", href: "/dashboard", active: true },
+    { icon: Home, label: "Dashboard", href: "/dashboard" },
     { icon: FolderOpen, label: "Projects", href: "/projects" },
     { icon: LayoutGrid, label: "Floor Plan Generator", href: "/floor-plan-generator" },
     { icon: Box, label: "3D Model Preview", href: "/3d-preview" },
     { icon: Calculator, label: "Cost Estimator", href: "/cost-estimator" },
-    { icon: FileText, label: "Reports", href: "/reports" },
+    { icon: FileText, label: "Reports", href: "/reports", active: true },
     { icon: Users, label: "Team", href: "/team" },
     { icon: Settings, label: "Settings", href: "/settings" },
+  ];
+
+  const reportTypes = [
+    {
+      title: "Project Summary",
+      description: "Overview of all project details and specifications",
+      icon: FileText,
+      format: "PDF",
+    },
+    {
+      title: "Cost Analysis",
+      description: "Detailed breakdown of estimated costs",
+      icon: FileSpreadsheet,
+      format: "Excel",
+    },
+    {
+      title: "Floor Plan Export",
+      description: "High-resolution floor plan images",
+      icon: FileImage,
+      format: "PNG/PDF",
+    },
   ];
 
   if (isLoading) {
@@ -142,8 +151,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col`}>
-        {/* Logo */}
+      <aside className={`${sidebarOpen ? "w-64" : "w-20"} bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col`}>
         <div className="p-4 border-b border-sidebar-border">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-10 h-10 rounded-xl bg-blueprint-gradient flex items-center justify-center">
@@ -157,7 +165,6 @@ const Dashboard = () => {
           </Link>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">
           {sidebarItems.map((item) => (
             <Link
@@ -165,8 +172,8 @@ const Dashboard = () => {
               to={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200 ${
                 item.active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               }`}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -175,7 +182,6 @@ const Dashboard = () => {
           ))}
         </nav>
 
-        {/* User Section */}
         <div className="p-4 border-t border-sidebar-border">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -213,15 +219,11 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col">
-        {/* Top Bar */}
         <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search projects..."
-                className="pl-9 w-64 bg-background"
-              />
+              <Input placeholder="Search reports..." className="pl-9 w-64 bg-background" />
             </div>
           </div>
 
@@ -230,107 +232,116 @@ const Dashboard = () => {
               <Bell className="w-5 h-5" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full" />
             </Button>
-            <Button variant="accent" asChild>
-              <Link to="/projects/new">
-                <Plus className="w-4 h-4" />
-                New Project
-              </Link>
-            </Button>
           </div>
         </header>
 
-        {/* Dashboard Content */}
         <div className="flex-1 p-6 overflow-auto">
-          {/* Welcome Section */}
           <div className="mb-8">
             <h1 className="font-display text-2xl font-bold text-foreground mb-1">
-              Welcome back, {displayName.split(" ")[0]}! 👋
+              Reports
             </h1>
             <p className="text-muted-foreground">
-              Here's what's happening with your projects today.
+              Generate and download project reports
             </p>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {stats.map((stat) => (
+          {/* Report Types */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            {reportTypes.map((report) => (
               <div
-                key={stat.label}
-                className="p-6 rounded-2xl bg-card border border-border hover:shadow-lg transition-shadow duration-300"
+                key={report.title}
+                className="bg-card rounded-xl border border-border p-5 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`w-12 h-12 rounded-xl bg-${stat.color}/10 flex items-center justify-center`}>
-                    <stat.icon className={`w-6 h-6 text-${stat.color}`} />
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-blueprint/10 flex items-center justify-center">
+                    <report.icon className="w-5 h-5 text-blueprint" />
                   </div>
-                  <TrendingUp className="w-4 h-4 text-success" />
+                  <div className="flex-1">
+                    <h3 className="font-medium text-foreground">{report.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {report.description}
+                    </p>
+                    <span className="inline-block mt-2 text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
+                      {report.format}
+                    </span>
+                  </div>
                 </div>
-                <div className="font-display text-3xl font-bold text-foreground mb-1">
-                  {stat.value}
-                </div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-                <div className="text-xs text-muted-foreground/70 mt-1">{stat.change}</div>
               </div>
             ))}
           </div>
 
-          {/* Recent Projects */}
+          {/* Project Reports */}
           <div className="bg-card rounded-2xl border border-border p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display text-xl font-semibold text-foreground">
-                Recent Projects
-              </h2>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/projects">View all</Link>
-              </Button>
-            </div>
+            <h2 className="font-display text-lg font-semibold text-foreground mb-4">
+              Available Reports
+            </h2>
 
-            {projectsLoading ? (
+            {loading ? (
               <div className="flex items-center justify-center h-32">
                 <div className="w-8 h-8 border-4 border-blueprint/30 border-t-blueprint rounded-full animate-spin" />
               </div>
             ) : projects.length === 0 ? (
-              <div className="text-center py-8">
-                <FolderOpen className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-                <p className="text-muted-foreground mb-4">No projects yet</p>
-                <Button variant="accent" asChild>
-                  <Link to="/floor-plan-generator">
-                    <Plus className="w-4 h-4" />
-                    Create Your First Floor Plan
-                  </Link>
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No projects available for reports</p>
+                <Button variant="outline" className="mt-4" asChild>
+                  <Link to="/floor-plan-generator">Create a Project</Link>
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {projects.map((project) => (
-                  <Link
+                  <div
                     key={project.id}
-                    to={`/3d-preview?projectId=${project.id}`}
-                    className="flex items-center justify-between p-4 rounded-xl bg-background border border-border hover:border-blueprint/50 transition-colors duration-200 cursor-pointer"
+                    className="flex items-center justify-between p-4 rounded-xl bg-background border border-border hover:border-blueprint/50 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-blueprint/10 flex items-center justify-center">
-                        <LayoutGrid className="w-6 h-6 text-blueprint" />
+                      <div className="w-10 h-10 rounded-lg bg-blueprint/10 flex items-center justify-center">
+                        <LayoutGrid className="w-5 h-5 text-blueprint" />
                       </div>
                       <div>
                         <h3 className="font-medium text-foreground">{project.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {project.plot_width}m × {project.plot_depth}m
-                        </p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>{project.plot_width}m × {project.plot_depth}m</span>
+                          {project.style && (
+                            <>
+                              <span>•</span>
+                              <span>{project.style}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                      {project.style && (
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blueprint/10 text-blueprint">
-                          {project.style}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="w-3 h-3" />
                         {formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })}
                       </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Download className="w-4 h-4 mr-1" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem>
+                            <FileText className="w-4 h-4 mr-2" />
+                            Export as PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            Export as Excel
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <FileImage className="w-4 h-4 mr-2" />
+                            Export Floor Plan
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
@@ -341,4 +352,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Reports;
