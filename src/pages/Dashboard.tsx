@@ -104,8 +104,8 @@ const Dashboard = () => {
   const sidebarItems = [
     { icon: Home, label: "Dashboard", href: "/dashboard", active: true },
     { icon: FolderOpen, label: "Projects", href: "/projects" },
-    { icon: LayoutGrid, label: "Floor Plans", href: "/floor-plans" },
-    { icon: Box, label: "3D Viewer", href: "/3d-viewer" },
+    { icon: LayoutGrid, label: "Floor Plan Generator", href: "/floor-plan-generator" },
+    { icon: Box, label: "3D Model Preview", href: "/3d-preview" },
     { icon: Calculator, label: "Cost Estimator", href: "/cost-estimator" },
     { icon: FileText, label: "Reports", href: "/reports" },
     { icon: Users, label: "Team", href: "/team" },

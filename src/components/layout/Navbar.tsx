@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Box, LogIn, UserPlus } from "lucide-react";
+import { Menu, X, Box, LogIn, UserPlus, LayoutGrid, Cuboid } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Navbar = () => {
@@ -9,10 +9,15 @@ const Navbar = () => {
   const location = useLocation();
   const isLandingPage = location.pathname === "/";
 
-  const navLinks = [
+  const landingLinks = [
     { name: "Features", href: "#features" },
     { name: "How It Works", href: "#how-it-works" },
     { name: "Pricing", href: "#pricing" },
+  ];
+
+  const appLinks = [
+    { name: "Floor Plan Generator", href: "/floor-plan-generator", icon: LayoutGrid },
+    { name: "3D Model Preview", href: "/3d-preview", icon: Cuboid },
   ];
 
   return (
@@ -42,9 +47,9 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          {isLandingPage && (
-            <div className="hidden md:flex items-center gap-8">
-              {navLinks.map((link) => (
+          <div className="hidden md:flex items-center gap-8">
+            {isLandingPage ? (
+              landingLinks.map((link) => (
                 <a
                   key={link.name}
                   href={link.href}
@@ -52,9 +57,25 @@ const Navbar = () => {
                 >
                   {link.name}
                 </a>
-              ))}
-            </div>
-          )}
+              ))
+            ) : (
+              appLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  to={link.href}
+                  className={cn(
+                    "flex items-center gap-2 font-medium transition-colors duration-200",
+                    location.pathname === link.href
+                      ? "text-blueprint"
+                      : "text-foreground/70 hover:text-foreground"
+                  )}
+                >
+                  <link.icon className="w-4 h-4" />
+                  {link.name}
+                </Link>
+              ))
+            )}
+          </div>
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
@@ -88,8 +109,8 @@ const Navbar = () => {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden absolute top-16 left-0 right-0 bg-card/95 backdrop-blur-xl border-b border-border p-4 space-y-4 animate-slide-up">
-            {isLandingPage &&
-              navLinks.map((link) => (
+            {isLandingPage ? (
+              landingLinks.map((link) => (
                 <a
                   key={link.name}
                   href={link.href}
@@ -98,7 +119,25 @@ const Navbar = () => {
                 >
                   {link.name}
                 </a>
-              ))}
+              ))
+            ) : (
+              appLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  to={link.href}
+                  className={cn(
+                    "flex items-center gap-2 py-2 font-medium",
+                    location.pathname === link.href
+                      ? "text-blueprint"
+                      : "text-foreground hover:text-blueprint"
+                  )}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <link.icon className="w-4 h-4" />
+                  {link.name}
+                </Link>
+              ))
+            )}
             <div className="flex flex-col gap-2 pt-2 border-t border-border">
               <Button variant="outline" asChild>
                 <Link to="/login" onClick={() => setIsMenuOpen(false)}>
