@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
-  ArrowLeft, 
   RotateCcw, 
   Maximize2, 
   Camera,
@@ -23,6 +22,7 @@ import FloorPlan3D from "@/components/3d/FloorPlan3D";
 import RoomConfigurator from "@/components/3d/RoomConfigurator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import Sidebar from "@/components/layout/Sidebar";
 
 interface RoomConfig {
   name: string;
@@ -209,25 +209,20 @@ const Model3DPreview = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/dashboard">
-                  <ArrowLeft className="w-5 h-5" />
-                </Link>
-              </Button>
-              <div className="flex items-center gap-2">
-                <Box className="w-6 h-6 text-blueprint" />
-                <div>
-                  <h1 className="text-xl font-display font-bold">3D Model Preview</h1>
-                  {currentProjectName && (
-                    <p className="text-xs text-muted-foreground">{currentProjectName}</p>
-                  )}
-                </div>
+    <div className="min-h-screen bg-background flex">
+      <Sidebar />
+      
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="border-b border-border bg-card px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Box className="w-6 h-6 text-blueprint" />
+              <div>
+                <h1 className="text-xl font-display font-bold">3D Model Preview</h1>
+                {currentProjectName && (
+                  <p className="text-xs text-muted-foreground">{currentProjectName}</p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -245,16 +240,15 @@ const Model3DPreview = () => {
               </Button>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* 3D Viewer */}
-          <div className="lg:col-span-2">
-            <Card className="overflow-hidden">
-              <CardHeader className="py-3 px-4 border-b border-border">
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto p-6">
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* 3D Viewer */}
+            <div className="lg:col-span-2">
+              <Card className="overflow-hidden">
+                <CardHeader className="py-3 px-4 border-b border-border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4 text-blueprint" />
@@ -443,6 +437,7 @@ const Model3DPreview = () => {
           </div>
         </div>
       </main>
+      </div>
     </div>
   );
 };
