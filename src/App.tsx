@@ -14,6 +14,7 @@ import Projects from "./pages/Projects";
 import CostEstimator from "./pages/CostEstimator";
 import Reports from "./pages/Reports";
 import Team from "./pages/Team";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/cost-estimator" element={<CostEstimator />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/team" element={<Team />} />
+            <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
