@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import Navbar from "@/components/layout/Navbar";
+import Sidebar from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -199,10 +199,10 @@ export default function FloorPlanGenerator() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="min-h-screen bg-background flex">
+      <Sidebar />
       
-      <main className="container mx-auto px-4 py-8 pt-24">
+      <main className="flex-1 overflow-auto p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
