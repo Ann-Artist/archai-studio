@@ -13,12 +13,15 @@ import {
   Grid3X3,
   Settings2,
   Loader2,
-  FolderOpen
+  FolderOpen,
+  Layers,
+  Grid2X2
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import FloorPlan3D from "@/components/3d/FloorPlan3D";
+import FloorPlan2D from "@/components/2d/FloorPlan2D";
 import RoomConfigurator from "@/components/3d/RoomConfigurator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -65,6 +68,7 @@ const Model3DPreview = () => {
   const [projects, setProjects] = useState<FloorPlanProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [currentProjectName, setCurrentProjectName] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
 
   // Load project from URL param or navigation state
   useEffect(() => {
@@ -217,15 +221,42 @@ const Model3DPreview = () => {
         <header className="border-b border-border bg-card px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Box className="w-6 h-6 text-blueprint" />
+              {viewMode === "3d" ? (
+                <Box className="w-6 h-6 text-blueprint" />
+              ) : (
+                <Grid2X2 className="w-6 h-6 text-blueprint" />
+              )}
               <div>
-                <h1 className="text-xl font-display font-bold">3D Model Preview</h1>
+                <h1 className="text-xl font-display font-bold">
+                  {viewMode === "3d" ? "3D Model Preview" : "2D Floor Plan"}
+                </h1>
                 {currentProjectName && (
                   <p className="text-xs text-muted-foreground">{currentProjectName}</p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* View Mode Toggle */}
+              <div className="flex items-center border border-border rounded-md overflow-hidden mr-2">
+                <Button
+                  variant={viewMode === "3d" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none border-0"
+                  onClick={() => setViewMode("3d")}
+                >
+                  <Layers className="w-4 h-4 mr-1" />
+                  3D
+                </Button>
+                <Button
+                  variant={viewMode === "2d" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none border-0"
+                  onClick={() => setViewMode("2d")}
+                >
+                  <Grid2X2 className="w-4 h-4 mr-1" />
+                  2D
+                </Button>
+              </div>
               <Button variant="outline" size="sm" onClick={handleReset}>
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Reset
@@ -252,10 +283,15 @@ const Model3DPreview = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4 text-blueprint" />
-                    <CardTitle className="text-sm font-medium">3D Viewport</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      {viewMode === "3d" ? "3D Viewport" : "2D Blueprint"}
+                    </CardTitle>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    Drag to rotate • Scroll to zoom • Shift+drag to pan
+                    {viewMode === "3d" 
+                      ? "Drag to rotate • Scroll to zoom • Shift+drag to pan"
+                      : "Hover over rooms for details"
+                    }
                   </span>
                 </div>
               </CardHeader>
@@ -264,11 +300,19 @@ const Model3DPreview = () => {
                   id="3d-container" 
                   className="h-[500px] lg:h-[600px] w-full"
                 >
-                  <FloorPlan3D 
-                    rooms={rooms} 
-                    plotWidth={plotWidth} 
-                    plotDepth={plotDepth} 
-                  />
+                  {viewMode === "3d" ? (
+                    <FloorPlan3D 
+                      rooms={rooms} 
+                      plotWidth={plotWidth}
+                      plotDepth={plotDepth} 
+                    />
+                  ) : (
+                    <FloorPlan2D 
+                      rooms={rooms} 
+                      plotWidth={plotWidth}
+                      plotDepth={plotDepth} 
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
