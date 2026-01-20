@@ -20,8 +20,9 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import FloorPlan3D from "@/components/3d/FloorPlan3D";
+import RealisticFloorPlan3D from "@/components/3d/RealisticFloorPlan3D";
 import FloorPlan2D from "@/components/2d/FloorPlan2D";
+import ViewModeControls from "@/components/3d/ViewModeControls";
 import RoomConfigurator from "@/components/3d/RoomConfigurator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,6 +70,12 @@ const Model3DPreview = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [currentProjectName, setCurrentProjectName] = useState<string>("");
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
+  
+  // 3D View controls state
+  const [renderMode, setRenderMode] = useState<"realistic" | "wireframe">("realistic");
+  const [transparentWalls, setTransparentWalls] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
+  const [enableFirstPerson, setEnableFirstPerson] = useState(false);
 
   // Load project from URL param or navigation state
   useEffect(() => {
@@ -295,16 +302,20 @@ const Model3DPreview = () => {
                   </span>
                 </div>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 relative">
                 <div 
                   id="3d-container" 
                   className="h-[500px] lg:h-[600px] w-full"
                 >
                   {viewMode === "3d" ? (
-                    <FloorPlan3D 
+                    <RealisticFloorPlan3D 
                       rooms={rooms} 
                       plotWidth={plotWidth}
-                      plotDepth={plotDepth} 
+                      plotDepth={plotDepth}
+                      viewMode={renderMode}
+                      transparentWalls={transparentWalls}
+                      showLabels={showLabels}
+                      enableFirstPerson={enableFirstPerson}
                     />
                   ) : (
                     <FloorPlan2D 
@@ -314,6 +325,22 @@ const Model3DPreview = () => {
                     />
                   )}
                 </div>
+                
+                {/* 3D View Mode Controls Overlay */}
+                {viewMode === "3d" && (
+                  <div className="absolute bottom-4 left-4 z-10">
+                    <ViewModeControls
+                      viewMode={renderMode}
+                      onViewModeChange={setRenderMode}
+                      transparentWalls={transparentWalls}
+                      onTransparentWallsChange={setTransparentWalls}
+                      showLabels={showLabels}
+                      onShowLabelsChange={setShowLabels}
+                      enableFirstPerson={enableFirstPerson}
+                      onEnableFirstPersonChange={setEnableFirstPerson}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
