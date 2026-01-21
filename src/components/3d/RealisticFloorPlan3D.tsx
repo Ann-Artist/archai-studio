@@ -10,6 +10,30 @@ import {
   Sky
 } from "@react-three/drei";
 import * as THREE from "three";
+import {
+  Sofa,
+  CoffeeTable,
+  TVUnit,
+  Bed,
+  SmallBed,
+  Nightstand,
+  Wardrobe,
+  KitchenCounter,
+  UpperCabinets,
+  Refrigerator,
+  DiningTable,
+  Chair,
+  Toilet,
+  Bathtub,
+  BathroomSink,
+  ShoeRack,
+  CoatRack,
+  Rug,
+  Plant,
+  Desk,
+  OfficeChair,
+} from "./Furniture";
+import { ScaleIndicator, PlotDimensions, EnhancedCompass } from "./ScaleIndicator";
 
 interface RoomConfig {
   name: string;
@@ -111,6 +135,119 @@ const WallSegment = ({
   );
 };
 
+// Get furniture for a room based on its name
+const RoomFurniture = ({ room, isWireframe }: { room: RoomConfig; isWireframe: boolean }) => {
+  if (isWireframe) return null;
+  
+  const roomName = room.name.toLowerCase();
+  const baseX = room.position[0];
+  const baseZ = room.position[2];
+  const floorY = 0.01;
+  
+  // Living Room
+  if (roomName.includes("living")) {
+    return (
+      <group>
+        <Sofa position={[baseX, floorY, baseZ + room.depth / 4]} rotation={0} />
+        <CoffeeTable position={[baseX, floorY, baseZ - 0.3]} />
+        <TVUnit position={[baseX, floorY, baseZ - room.depth / 3]} rotation={0} />
+        <Rug position={[baseX, floorY, baseZ]} color="#8b6b5b" />
+        <Plant position={[baseX + room.width / 3, floorY, baseZ + room.depth / 3]} scale={0.8} />
+      </group>
+    );
+  }
+  
+  // Kitchen
+  if (roomName.includes("kitchen")) {
+    return (
+      <group>
+        <KitchenCounter position={[baseX, floorY, baseZ - room.depth / 4]} rotation={0} />
+        <UpperCabinets position={[baseX, floorY, baseZ - room.depth / 4]} rotation={0} />
+        <Refrigerator position={[baseX + room.width / 3, floorY, baseZ - room.depth / 4]} />
+        <DiningTable position={[baseX - 0.3, floorY, baseZ + room.depth / 5]} scale={0.9} />
+        <Chair position={[baseX - 0.3, floorY, baseZ + room.depth / 5 + 0.5]} rotation={0} scale={0.9} />
+        <Chair position={[baseX - 0.3, floorY, baseZ + room.depth / 5 - 0.5]} rotation={Math.PI} scale={0.9} />
+      </group>
+    );
+  }
+  
+  // Master Bedroom
+  if (roomName.includes("master") || (roomName.includes("bedroom") && !roomName.includes("2"))) {
+    return (
+      <group>
+        <Bed position={[baseX, floorY, baseZ - room.depth / 6]} rotation={0} />
+        <Nightstand position={[baseX - room.width / 3, floorY, baseZ - room.depth / 4]} rotation={0} />
+        <Nightstand position={[baseX + room.width / 3, floorY, baseZ - room.depth / 4]} rotation={0} />
+        <Wardrobe position={[baseX + room.width / 3 - 0.2, floorY, baseZ + room.depth / 3]} rotation={Math.PI} />
+        <Rug position={[baseX, floorY, baseZ + 0.3]} color="#9b8b7b" scale={1.2} />
+      </group>
+    );
+  }
+  
+  // Bedroom 2 / Secondary Bedroom
+  if (roomName.includes("bedroom 2") || roomName.includes("bedroom2") || roomName.includes("guest")) {
+    return (
+      <group>
+        <SmallBed position={[baseX - room.width / 6, floorY, baseZ - room.depth / 6]} rotation={0} />
+        <Nightstand position={[baseX + room.width / 4, floorY, baseZ - room.depth / 5]} scale={0.9} />
+        <Desk position={[baseX, floorY, baseZ + room.depth / 4]} rotation={Math.PI} scale={0.9} />
+        <OfficeChair position={[baseX, floorY, baseZ + room.depth / 4 + 0.5]} rotation={Math.PI} scale={0.9} />
+        <Plant position={[baseX + room.width / 3, floorY, baseZ + room.depth / 4]} scale={0.7} />
+      </group>
+    );
+  }
+  
+  // Bathroom
+  if (roomName.includes("bathroom") || roomName.includes("bath") || roomName.includes("wc")) {
+    return (
+      <group>
+        <Toilet position={[baseX - room.width / 4, floorY, baseZ + room.depth / 4]} rotation={0} scale={0.9} />
+        <BathroomSink position={[baseX + room.width / 5, floorY, baseZ - room.depth / 4]} rotation={0} scale={0.9} />
+        <Bathtub position={[baseX - room.width / 5, floorY, baseZ - room.depth / 6]} rotation={Math.PI / 2} scale={0.8} />
+      </group>
+    );
+  }
+  
+  // Entrance / Hallway / Foyer
+  if (roomName.includes("entrance") || roomName.includes("hall") || roomName.includes("foyer")) {
+    return (
+      <group>
+        <ShoeRack position={[baseX - room.width / 4, floorY, baseZ]} rotation={Math.PI / 2} scale={0.8} />
+        <CoatRack position={[baseX + room.width / 4, floorY, baseZ - room.depth / 4]} scale={0.8} />
+        <Plant position={[baseX + room.width / 4, floorY, baseZ + room.depth / 4]} scale={0.6} />
+      </group>
+    );
+  }
+  
+  // Study / Office
+  if (roomName.includes("study") || roomName.includes("office")) {
+    return (
+      <group>
+        <Desk position={[baseX, floorY, baseZ - room.depth / 4]} rotation={0} />
+        <OfficeChair position={[baseX, floorY, baseZ]} rotation={0} />
+        <Wardrobe position={[baseX + room.width / 3, floorY, baseZ - room.depth / 4]} rotation={Math.PI / 2} scale={0.8} />
+        <Plant position={[baseX - room.width / 3, floorY, baseZ + room.depth / 4]} scale={0.7} />
+      </group>
+    );
+  }
+  
+  // Dining Room
+  if (roomName.includes("dining")) {
+    return (
+      <group>
+        <DiningTable position={[baseX, floorY, baseZ]} scale={1.2} />
+        <Chair position={[baseX - 0.6, floorY, baseZ]} rotation={Math.PI / 2} />
+        <Chair position={[baseX + 0.6, floorY, baseZ]} rotation={-Math.PI / 2} />
+        <Chair position={[baseX, floorY, baseZ + 0.5]} rotation={0} />
+        <Chair position={[baseX, floorY, baseZ - 0.5]} rotation={Math.PI} />
+        <Rug position={[baseX, floorY, baseZ]} color="#7b6b5b" scale={1.5} />
+      </group>
+    );
+  }
+  
+  return null;
+};
+
 // Create room with walls, floor, and ceiling
 const Room = ({
   room,
@@ -143,18 +280,6 @@ const Room = ({
     // Right wall
     { start: [baseX + halfWidth, baseZ - halfDepth], end: [baseX + halfWidth, baseZ + halfDepth] },
   ];
-
-  // Create floor texture pattern
-  const floorMaterial = useMemo(() => {
-    if (isWireframe) {
-      return new THREE.MeshBasicMaterial({ color: "#1e3a5f", wireframe: true });
-    }
-    return new THREE.MeshStandardMaterial({
-      color: MATERIALS.floor.color,
-      roughness: MATERIALS.floor.roughness,
-      metalness: MATERIALS.floor.metalness,
-    });
-  }, [isWireframe]);
 
   return (
     <group
@@ -246,6 +371,9 @@ const Room = ({
           </Text>
         </group>
       )}
+
+      {/* Furniture */}
+      <RoomFurniture room={room} isWireframe={isWireframe} />
     </group>
   );
 };
@@ -425,25 +553,25 @@ const RealisticFloorPlan3DScene = ({
         />
       ))}
 
-      {/* Compass indicator */}
-      <group position={[plotWidth / 2 - 1, 0.1, plotDepth / 2 - 1]}>
-        <Text
-          position={[0, 0.3, 0]}
-          fontSize={0.5}
-          color="#dc2626"
-          anchorX="center"
-        >
-          N
-        </Text>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.4, 32]} />
-          <meshStandardMaterial color="#dc2626" />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -0.5]}>
-          <coneGeometry args={[0.15, 0.4, 8]} />
-          <meshStandardMaterial color="#dc2626" />
-        </mesh>
-      </group>
+      {/* Enhanced compass indicator */}
+      <EnhancedCompass 
+        position={[plotWidth / 2 - 1.5, 0.05, plotDepth / 2 - 1.5]} 
+        isWireframe={isWireframe} 
+      />
+
+      {/* Scale indicator */}
+      <ScaleIndicator 
+        position={[-plotWidth / 2 + 3, 0.05, plotDepth / 2 + 1]} 
+        length={5} 
+        isWireframe={isWireframe} 
+      />
+
+      {/* Plot dimensions */}
+      <PlotDimensions 
+        plotWidth={plotWidth} 
+        plotDepth={plotDepth} 
+        isWireframe={isWireframe} 
+      />
 
       {/* Plot boundary markers */}
       <lineSegments>
