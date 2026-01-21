@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { 
   OrbitControls, 
@@ -34,6 +34,7 @@ import {
   OfficeChair,
 } from "./Furniture";
 import { ScaleIndicator, PlotDimensions, EnhancedCompass } from "./ScaleIndicator";
+import { Door, Window, SlidingDoor, BathroomWindow } from "./DoorsAndWindows";
 
 interface RoomConfig {
   name: string;
@@ -61,11 +62,6 @@ const MATERIALS = {
     roughness: 0.9,
     metalness: 0.0,
   },
-  floor: {
-    color: "#d4a574",
-    roughness: 0.8,
-    metalness: 0.0,
-  },
   ceiling: {
     color: "#fafaf9",
     roughness: 0.95,
@@ -80,20 +76,33 @@ const MATERIALS = {
 
 const WALL_THICKNESS = 0.15;
 const BASEBOARD_HEIGHT = 0.1;
+const DOOR_WIDTH = 0.9;
+const DOOR_HEIGHT = 2.1;
+const WINDOW_WIDTH = 1.2;
+const WINDOW_HEIGHT = 1.2;
+const WINDOW_SILL_HEIGHT = 0.9;
 
-// Create a single wall segment
-const WallSegment = ({
+// Wall segment with optional door/window openings
+const WallSegmentWithOpenings = ({
   start,
   end,
   height,
   isWireframe,
   isTransparent,
+  hasDoor = false,
+  hasWindow = false,
+  doorPosition = 0.5, // 0-1 position along wall
+  windowPosition = 0.5,
 }: {
   start: [number, number];
   end: [number, number];
   height: number;
   isWireframe: boolean;
   isTransparent: boolean;
+  hasDoor?: boolean;
+  hasWindow?: boolean;
+  doorPosition?: number;
+  windowPosition?: number;
 }) => {
   const length = Math.sqrt(
     Math.pow(end[0] - start[0], 2) + Math.pow(end[1] - start[1], 2)
@@ -102,14 +111,27 @@ const WallSegment = ({
   const midX = (start[0] + end[0]) / 2;
   const midZ = (start[1] + end[1]) / 2;
 
-  return (
-    <group position={[midX, height / 2, midZ]} rotation={[0, -angle, 0]}>
-      {/* Main wall */}
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[length, height, WALL_THICKNESS]} />
-        {isWireframe ? (
+  // Calculate door and window positions along wall
+  const doorOffset = (doorPosition - 0.5) * (length - DOOR_WIDTH - 0.5);
+  const windowOffset = (windowPosition - 0.5) * (length - WINDOW_WIDTH - 0.5);
+
+  if (isWireframe) {
+    return (
+      <group position={[midX, height / 2, midZ]} rotation={[0, -angle, 0]}>
+        <mesh>
+          <boxGeometry args={[length, height, WALL_THICKNESS]} />
           <meshBasicMaterial color="#1e3a5f" wireframe />
-        ) : (
+        </mesh>
+      </group>
+    );
+  }
+
+  // If no openings, render simple wall
+  if (!hasDoor && !hasWindow) {
+    return (
+      <group position={[midX, height / 2, midZ]} rotation={[0, -angle, 0]}>
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[length, height, WALL_THICKNESS]} />
           <meshStandardMaterial
             color={MATERIALS.wall.color}
             roughness={MATERIALS.wall.roughness}
@@ -118,21 +140,226 @@ const WallSegment = ({
             opacity={isTransparent ? 0.3 : 1}
             side={THREE.DoubleSide}
           />
-        )}
-      </mesh>
-
-      {/* Baseboard */}
-      {!isWireframe && (
+        </mesh>
+        {/* Baseboard */}
         <mesh position={[0, -height / 2 + BASEBOARD_HEIGHT / 2, WALL_THICKNESS / 2 + 0.01]} castShadow>
           <boxGeometry args={[length, BASEBOARD_HEIGHT, 0.02]} />
+          <meshStandardMaterial color={MATERIALS.baseboard.color} roughness={MATERIALS.baseboard.roughness} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Wall with door opening
+  if (hasDoor && !hasWindow) {
+    const leftWidth = (length / 2 + doorOffset - DOOR_WIDTH / 2);
+    const rightWidth = (length / 2 - doorOffset - DOOR_WIDTH / 2);
+    const topHeight = height - DOOR_HEIGHT;
+
+    return (
+      <group position={[midX, 0, midZ]} rotation={[0, -angle, 0]}>
+        {/* Left wall section */}
+        {leftWidth > 0.1 && (
+          <mesh position={[-length / 2 + leftWidth / 2, height / 2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[leftWidth, height, WALL_THICKNESS]} />
+            <meshStandardMaterial
+              color={MATERIALS.wall.color}
+              roughness={MATERIALS.wall.roughness}
+              transparent={isTransparent}
+              opacity={isTransparent ? 0.3 : 1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
+        
+        {/* Right wall section */}
+        {rightWidth > 0.1 && (
+          <mesh position={[length / 2 - rightWidth / 2, height / 2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[rightWidth, height, WALL_THICKNESS]} />
+            <meshStandardMaterial
+              color={MATERIALS.wall.color}
+              roughness={MATERIALS.wall.roughness}
+              transparent={isTransparent}
+              opacity={isTransparent ? 0.3 : 1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
+        
+        {/* Top section above door */}
+        {topHeight > 0.1 && (
+          <mesh position={[doorOffset, DOOR_HEIGHT + topHeight / 2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[DOOR_WIDTH + 0.2, topHeight, WALL_THICKNESS]} />
+            <meshStandardMaterial
+              color={MATERIALS.wall.color}
+              roughness={MATERIALS.wall.roughness}
+              transparent={isTransparent}
+              opacity={isTransparent ? 0.3 : 1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
+        
+        {/* Door */}
+        <Door position={[doorOffset, 0, 0]} rotation={0} />
+        
+        {/* Baseboards */}
+        {leftWidth > 0.1 && (
+          <mesh position={[-length / 2 + leftWidth / 2, BASEBOARD_HEIGHT / 2, WALL_THICKNESS / 2 + 0.01]} castShadow>
+            <boxGeometry args={[leftWidth, BASEBOARD_HEIGHT, 0.02]} />
+            <meshStandardMaterial color={MATERIALS.baseboard.color} roughness={MATERIALS.baseboard.roughness} />
+          </mesh>
+        )}
+        {rightWidth > 0.1 && (
+          <mesh position={[length / 2 - rightWidth / 2, BASEBOARD_HEIGHT / 2, WALL_THICKNESS / 2 + 0.01]} castShadow>
+            <boxGeometry args={[rightWidth, BASEBOARD_HEIGHT, 0.02]} />
+            <meshStandardMaterial color={MATERIALS.baseboard.color} roughness={MATERIALS.baseboard.roughness} />
+          </mesh>
+        )}
+      </group>
+    );
+  }
+
+  // Wall with window opening
+  if (hasWindow && !hasDoor) {
+    const leftWidth = (length / 2 + windowOffset - WINDOW_WIDTH / 2);
+    const rightWidth = (length / 2 - windowOffset - WINDOW_WIDTH / 2);
+    const topHeight = height - WINDOW_SILL_HEIGHT - WINDOW_HEIGHT;
+
+    return (
+      <group position={[midX, 0, midZ]} rotation={[0, -angle, 0]}>
+        {/* Left wall section */}
+        {leftWidth > 0.1 && (
+          <mesh position={[-length / 2 + leftWidth / 2, height / 2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[leftWidth, height, WALL_THICKNESS]} />
+            <meshStandardMaterial
+              color={MATERIALS.wall.color}
+              roughness={MATERIALS.wall.roughness}
+              transparent={isTransparent}
+              opacity={isTransparent ? 0.3 : 1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
+        
+        {/* Right wall section */}
+        {rightWidth > 0.1 && (
+          <mesh position={[length / 2 - rightWidth / 2, height / 2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[rightWidth, height, WALL_THICKNESS]} />
+            <meshStandardMaterial
+              color={MATERIALS.wall.color}
+              roughness={MATERIALS.wall.roughness}
+              transparent={isTransparent}
+              opacity={isTransparent ? 0.3 : 1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
+        
+        {/* Bottom section below window */}
+        <mesh position={[windowOffset, WINDOW_SILL_HEIGHT / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[WINDOW_WIDTH + 0.2, WINDOW_SILL_HEIGHT, WALL_THICKNESS]} />
           <meshStandardMaterial
-            color={MATERIALS.baseboard.color}
-            roughness={MATERIALS.baseboard.roughness}
+            color={MATERIALS.wall.color}
+            roughness={MATERIALS.wall.roughness}
+            transparent={isTransparent}
+            opacity={isTransparent ? 0.3 : 1}
+            side={THREE.DoubleSide}
           />
         </mesh>
-      )}
+        
+        {/* Top section above window */}
+        {topHeight > 0.1 && (
+          <mesh position={[windowOffset, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT + topHeight / 2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[WINDOW_WIDTH + 0.2, topHeight, WALL_THICKNESS]} />
+            <meshStandardMaterial
+              color={MATERIALS.wall.color}
+              roughness={MATERIALS.wall.roughness}
+              transparent={isTransparent}
+              opacity={isTransparent ? 0.3 : 1}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
+        
+        {/* Window */}
+        <Window position={[windowOffset, WINDOW_SILL_HEIGHT + WINDOW_HEIGHT / 2, 0]} rotation={0} />
+        
+        {/* Baseboard */}
+        <mesh position={[0, BASEBOARD_HEIGHT / 2, WALL_THICKNESS / 2 + 0.01]} castShadow>
+          <boxGeometry args={[length, BASEBOARD_HEIGHT, 0.02]} />
+          <meshStandardMaterial color={MATERIALS.baseboard.color} roughness={MATERIALS.baseboard.roughness} />
+        </mesh>
+      </group>
+    );
+  }
+
+  // Default: both door and window
+  return (
+    <group position={[midX, 0, midZ]} rotation={[0, -angle, 0]}>
+      <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[length, height, WALL_THICKNESS]} />
+        <meshStandardMaterial
+          color={MATERIALS.wall.color}
+          roughness={MATERIALS.wall.roughness}
+          transparent={isTransparent}
+          opacity={isTransparent ? 0.3 : 1}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
     </group>
   );
+};
+
+// Determine wall openings based on room type
+const getWallOpenings = (roomName: string, wallIndex: number): { hasDoor: boolean; hasWindow: boolean; doorPos: number; windowPos: number } => {
+  const name = roomName.toLowerCase();
+  
+  // Living room - door on one wall, windows on two walls, sliding door on one
+  if (name.includes("living")) {
+    if (wallIndex === 0) return { hasDoor: false, hasWindow: true, doorPos: 0.5, windowPos: 0.3 };
+    if (wallIndex === 1) return { hasDoor: false, hasWindow: true, doorPos: 0.5, windowPos: 0.7 };
+    if (wallIndex === 2) return { hasDoor: true, hasWindow: false, doorPos: 0.3, windowPos: 0.5 };
+    return { hasDoor: false, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+  }
+  
+  // Kitchen - door and window
+  if (name.includes("kitchen")) {
+    if (wallIndex === 0) return { hasDoor: false, hasWindow: true, doorPos: 0.5, windowPos: 0.5 };
+    if (wallIndex === 2) return { hasDoor: true, hasWindow: false, doorPos: 0.6, windowPos: 0.5 };
+    return { hasDoor: false, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+  }
+  
+  // Master Bedroom - door and windows
+  if (name.includes("master") || (name.includes("bedroom") && !name.includes("2"))) {
+    if (wallIndex === 0) return { hasDoor: false, hasWindow: true, doorPos: 0.5, windowPos: 0.5 };
+    if (wallIndex === 1) return { hasDoor: false, hasWindow: true, doorPos: 0.5, windowPos: 0.5 };
+    if (wallIndex === 3) return { hasDoor: true, hasWindow: false, doorPos: 0.7, windowPos: 0.5 };
+    return { hasDoor: false, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+  }
+  
+  // Bedroom 2 - door and one window
+  if (name.includes("bedroom 2") || name.includes("bedroom2") || name.includes("guest")) {
+    if (wallIndex === 1) return { hasDoor: false, hasWindow: true, doorPos: 0.5, windowPos: 0.5 };
+    if (wallIndex === 2) return { hasDoor: true, hasWindow: false, doorPos: 0.4, windowPos: 0.5 };
+    return { hasDoor: false, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+  }
+  
+  // Bathroom - door and small window
+  if (name.includes("bathroom") || name.includes("bath") || name.includes("wc")) {
+    if (wallIndex === 0) return { hasDoor: false, hasWindow: true, doorPos: 0.5, windowPos: 0.5 };
+    if (wallIndex === 3) return { hasDoor: true, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+    return { hasDoor: false, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+  }
+  
+  // Entrance - main door
+  if (name.includes("entrance") || name.includes("hall") || name.includes("foyer")) {
+    if (wallIndex === 1) return { hasDoor: true, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+    if (wallIndex === 3) return { hasDoor: true, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+    return { hasDoor: false, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
+  }
+  
+  return { hasDoor: false, hasWindow: false, doorPos: 0.5, windowPos: 0.5 };
 };
 
 // Get furniture for a room based on its name
@@ -184,7 +411,7 @@ const RoomFurniture = ({ room, isWireframe }: { room: RoomConfig; isWireframe: b
     );
   }
   
-  // Bedroom 2 / Secondary Bedroom
+  // Bedroom 2
   if (roomName.includes("bedroom 2") || roomName.includes("bedroom2") || roomName.includes("guest")) {
     return (
       <group>
@@ -208,7 +435,7 @@ const RoomFurniture = ({ room, isWireframe }: { room: RoomConfig; isWireframe: b
     );
   }
   
-  // Entrance / Hallway / Foyer
+  // Entrance
   if (roomName.includes("entrance") || roomName.includes("hall") || roomName.includes("foyer")) {
     return (
       <group>
@@ -219,36 +446,10 @@ const RoomFurniture = ({ room, isWireframe }: { room: RoomConfig; isWireframe: b
     );
   }
   
-  // Study / Office
-  if (roomName.includes("study") || roomName.includes("office")) {
-    return (
-      <group>
-        <Desk position={[baseX, floorY, baseZ - room.depth / 4]} rotation={0} />
-        <OfficeChair position={[baseX, floorY, baseZ]} rotation={0} />
-        <Wardrobe position={[baseX + room.width / 3, floorY, baseZ - room.depth / 4]} rotation={Math.PI / 2} scale={0.8} />
-        <Plant position={[baseX - room.width / 3, floorY, baseZ + room.depth / 4]} scale={0.7} />
-      </group>
-    );
-  }
-  
-  // Dining Room
-  if (roomName.includes("dining")) {
-    return (
-      <group>
-        <DiningTable position={[baseX, floorY, baseZ]} scale={1.2} />
-        <Chair position={[baseX - 0.6, floorY, baseZ]} rotation={Math.PI / 2} />
-        <Chair position={[baseX + 0.6, floorY, baseZ]} rotation={-Math.PI / 2} />
-        <Chair position={[baseX, floorY, baseZ + 0.5]} rotation={0} />
-        <Chair position={[baseX, floorY, baseZ - 0.5]} rotation={Math.PI} />
-        <Rug position={[baseX, floorY, baseZ]} color="#7b6b5b" scale={1.5} />
-      </group>
-    );
-  }
-  
   return null;
 };
 
-// Create room with walls, floor, and ceiling
+// Room component with walls, floor, ceiling, and openings
 const Room = ({
   room,
   isWireframe,
@@ -263,22 +464,17 @@ const Room = ({
   const { name, width, depth, height, position, color } = room;
   const [hovered, setHovered] = useState(false);
 
-  // Calculate room corners (centered on position)
   const halfWidth = width / 2;
   const halfDepth = depth / 2;
   const baseX = position[0];
   const baseZ = position[2];
 
-  // Wall segments: [start, end] for each wall
-  const walls: Array<{ start: [number, number]; end: [number, number] }> = [
-    // Front wall
-    { start: [baseX - halfWidth, baseZ - halfDepth], end: [baseX + halfWidth, baseZ - halfDepth] },
-    // Back wall
-    { start: [baseX - halfWidth, baseZ + halfDepth], end: [baseX + halfWidth, baseZ + halfDepth] },
-    // Left wall
-    { start: [baseX - halfWidth, baseZ - halfDepth], end: [baseX - halfWidth, baseZ + halfDepth] },
-    // Right wall
-    { start: [baseX + halfWidth, baseZ - halfDepth], end: [baseX + halfWidth, baseZ + halfDepth] },
+  // Wall segments with openings
+  const walls: Array<{ start: [number, number]; end: [number, number]; index: number }> = [
+    { start: [baseX - halfWidth, baseZ - halfDepth], end: [baseX + halfWidth, baseZ - halfDepth], index: 0 },
+    { start: [baseX - halfWidth, baseZ + halfDepth], end: [baseX + halfWidth, baseZ + halfDepth], index: 1 },
+    { start: [baseX - halfWidth, baseZ - halfDepth], end: [baseX - halfWidth, baseZ + halfDepth], index: 2 },
+    { start: [baseX + halfWidth, baseZ - halfDepth], end: [baseX + halfWidth, baseZ + halfDepth], index: 3 },
   ];
 
   return (
@@ -327,17 +523,24 @@ const Room = ({
         )}
       </mesh>
 
-      {/* Walls */}
-      {walls.map((wall, index) => (
-        <WallSegment
-          key={index}
-          start={wall.start}
-          end={wall.end}
-          height={height}
-          isWireframe={isWireframe}
-          isTransparent={isTransparent || hovered}
-        />
-      ))}
+      {/* Walls with openings */}
+      {walls.map((wall) => {
+        const openings = getWallOpenings(name, wall.index);
+        return (
+          <WallSegmentWithOpenings
+            key={wall.index}
+            start={wall.start}
+            end={wall.end}
+            height={height}
+            isWireframe={isWireframe}
+            isTransparent={isTransparent || hovered}
+            hasDoor={openings.hasDoor}
+            hasWindow={openings.hasWindow}
+            doorPosition={openings.doorPos}
+            windowPosition={openings.windowPos}
+          />
+        );
+      })}
 
       {/* Room label */}
       {showLabel && (
@@ -394,44 +597,23 @@ const GroundPlane = ({
       {isWireframe ? (
         <meshBasicMaterial color="#e2e8f0" />
       ) : (
-        <meshStandardMaterial
-          color="#e7e5e4"
-          roughness={1}
-          metalness={0}
-        />
+        <meshStandardMaterial color="#e7e5e4" roughness={1} metalness={0} />
       )}
     </mesh>
   );
 };
 
-// First person camera controls
+// First person camera
 const FirstPersonCamera = () => {
   const { camera } = useThree();
   const velocity = useRef(new THREE.Vector3());
   const direction = useRef(new THREE.Vector3());
-  const moveForward = useRef(false);
-  const moveBackward = useRef(false);
-  const moveLeft = useRef(false);
-  const moveRight = useRef(false);
 
   useFrame((_, delta) => {
-    const speed = 5;
-    direction.current.z = Number(moveForward.current) - Number(moveBackward.current);
-    direction.current.x = Number(moveRight.current) - Number(moveLeft.current);
-    direction.current.normalize();
-
-    if (moveForward.current || moveBackward.current) {
-      velocity.current.z -= direction.current.z * speed * delta;
-    }
-    if (moveLeft.current || moveRight.current) {
-      velocity.current.x -= direction.current.x * speed * delta;
-    }
-
-    camera.position.x += velocity.current.x;
-    camera.position.z += velocity.current.z;
-
     velocity.current.x *= 0.9;
     velocity.current.z *= 0.9;
+    camera.position.x += velocity.current.x;
+    camera.position.z += velocity.current.z;
   });
 
   return (
@@ -442,7 +624,7 @@ const FirstPersonCamera = () => {
   );
 };
 
-// Standard orbit camera
+// Orbit camera
 const OrbitCamera = () => {
   return (
     <>
@@ -460,7 +642,7 @@ const OrbitCamera = () => {
   );
 };
 
-// Main 3D Scene
+// Main scene
 const RealisticFloorPlan3DScene = ({
   rooms = [],
   plotWidth = 20,
@@ -476,20 +658,11 @@ const RealisticFloorPlan3DScene = ({
     <>
       {enableFirstPerson ? <FirstPersonCamera /> : <OrbitCamera />}
 
-      {/* Lighting */}
       <ambientLight intensity={isWireframe ? 0.8 : 0.5} />
       
       {!isWireframe && (
         <>
-          {/* Sky background */}
-          <Sky
-            distance={450000}
-            sunPosition={[100, 50, 100]}
-            inclination={0.5}
-            azimuth={0.25}
-          />
-
-          {/* Main directional light (sun) */}
+          <Sky distance={450000} sunPosition={[100, 50, 100]} inclination={0.5} azimuth={0.25} />
           <directionalLight
             position={[15, 25, 15]}
             intensity={1.5}
@@ -501,33 +674,14 @@ const RealisticFloorPlan3DScene = ({
             shadow-camera-top={30}
             shadow-camera-bottom={-30}
           />
-          
-          {/* Fill light */}
-          <directionalLight
-            position={[-10, 15, -10]}
-            intensity={0.4}
-          />
-          
-          {/* Hemisphere light for ambient color */}
-          <hemisphereLight
-            args={["#87CEEB", "#8B4513", 0.4]}
-          />
-
-          {/* Contact shadows for realism */}
-          <ContactShadows
-            position={[0, 0, 0]}
-            opacity={0.5}
-            scale={60}
-            blur={1.5}
-            far={25}
-          />
+          <directionalLight position={[-10, 15, -10]} intensity={0.4} />
+          <hemisphereLight args={["#87CEEB", "#8B4513", 0.4]} />
+          <ContactShadows position={[0, 0, 0]} opacity={0.5} scale={60} blur={1.5} far={25} />
         </>
       )}
 
-      {/* Ground plane */}
       <GroundPlane width={plotWidth} depth={plotDepth} isWireframe={isWireframe} />
 
-      {/* Grid */}
       <Grid
         position={[0, 0.02, 0]}
         args={[plotWidth, plotDepth]}
@@ -542,7 +696,6 @@ const RealisticFloorPlan3DScene = ({
         followCamera={false}
       />
 
-      {/* Rooms */}
       {rooms.map((room, index) => (
         <Room
           key={index}
@@ -553,31 +706,12 @@ const RealisticFloorPlan3DScene = ({
         />
       ))}
 
-      {/* Enhanced compass indicator */}
-      <EnhancedCompass 
-        position={[plotWidth / 2 - 1.5, 0.05, plotDepth / 2 - 1.5]} 
-        isWireframe={isWireframe} 
-      />
+      <EnhancedCompass position={[plotWidth / 2 - 1.5, 0.05, plotDepth / 2 - 1.5]} isWireframe={isWireframe} />
+      <ScaleIndicator position={[-plotWidth / 2 + 3, 0.05, plotDepth / 2 + 1]} length={5} isWireframe={isWireframe} />
+      <PlotDimensions plotWidth={plotWidth} plotDepth={plotDepth} isWireframe={isWireframe} />
 
-      {/* Scale indicator */}
-      <ScaleIndicator 
-        position={[-plotWidth / 2 + 3, 0.05, plotDepth / 2 + 1]} 
-        length={5} 
-        isWireframe={isWireframe} 
-      />
-
-      {/* Plot dimensions */}
-      <PlotDimensions 
-        plotWidth={plotWidth} 
-        plotDepth={plotDepth} 
-        isWireframe={isWireframe} 
-      />
-
-      {/* Plot boundary markers */}
       <lineSegments>
-        <edgesGeometry
-          args={[new THREE.BoxGeometry(plotWidth, 0.1, plotDepth)]}
-        />
+        <edgesGeometry args={[new THREE.BoxGeometry(plotWidth, 0.1, plotDepth)]} />
         <lineBasicMaterial color={isWireframe ? "#1e3a5f" : "#78716c"} />
       </lineSegments>
     </>
