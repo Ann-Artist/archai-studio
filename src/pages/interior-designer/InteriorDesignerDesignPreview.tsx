@@ -13,17 +13,21 @@ import {
   Palette,
   RefreshCw,
   Layers,
-  Frame
+  Frame,
+  Grid3X3,
+  Box
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import InteriorDesignerSidebar from "@/components/layout/InteriorDesignerSidebar";
 import DesignPreview3D from "@/components/3d/DesignPreview3D";
+import InteriorDesign2D from "@/components/2d/InteriorDesign2D";
 import ViewModeControls from "@/components/3d/ViewModeControls";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface RoomConfig {
   name: string;
@@ -252,66 +256,89 @@ const InteriorDesignerDesignPreview = () => {
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
           <div className="grid lg:grid-cols-4 gap-6">
-            {/* 3D Viewer */}
+            {/* Design Viewer with 2D/3D toggle */}
             <div className="lg:col-span-3">
               <Card className="overflow-hidden">
-                <CardHeader className="py-3 px-4 border-b border-border">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-accent" />
-                      <CardTitle className="text-sm font-medium">3D Design Preview</CardTitle>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="flex gap-2">
-                        {designConfig.colorPalette.map((color, i) => (
-                          <div 
-                            key={i}
-                            className="w-5 h-5 rounded-full border border-white shadow-sm"
-                            style={{ backgroundColor: color }}
-                            title={color}
-                          />
-                        ))}
+                <Tabs defaultValue="3d" className="w-full">
+                  <CardHeader className="py-3 px-4 border-b border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <TabsList className="h-8">
+                          <TabsTrigger value="3d" className="text-xs gap-1.5 px-3">
+                            <Box className="w-3.5 h-3.5" />
+                            3D View
+                          </TabsTrigger>
+                          <TabsTrigger value="2d" className="text-xs gap-1.5 px-3">
+                            <Grid3X3 className="w-3.5 h-3.5" />
+                            2D Blueprint
+                          </TabsTrigger>
+                        </TabsList>
+                        <div className="flex gap-2">
+                          {designConfig.colorPalette.map((color, i) => (
+                            <div 
+                              key={i}
+                              className="w-5 h-5 rounded-full border border-white shadow-sm"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                        </div>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        Drag to rotate • Scroll to zoom
+                        {designConfig.style.charAt(0).toUpperCase() + designConfig.style.slice(1)} Style
                       </span>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0 relative">
-                  <div 
-                    id="design-preview-container" 
-                    className="h-[500px] lg:h-[600px] w-full"
-                  >
-                    <DesignPreview3D 
-                      rooms={rooms} 
-                      plotWidth={plotWidth}
-                      plotDepth={plotDepth}
-                      designConfig={designConfig}
-                      showFurniture={showFurniture}
-                      showMaterials={showMaterials}
-                      showWallDecor={showWallDecor}
-                      viewMode={renderMode}
-                      transparentWalls={transparentWalls}
-                      showLabels={showLabels}
-                      enableFirstPerson={enableFirstPerson}
-                    />
-                  </div>
-                  
-                  {/* View Mode Controls Overlay */}
-                  <div className="absolute bottom-4 left-4 z-10">
-                    <ViewModeControls
-                      viewMode={renderMode}
-                      onViewModeChange={setRenderMode}
-                      transparentWalls={transparentWalls}
-                      onTransparentWallsChange={setTransparentWalls}
-                      showLabels={showLabels}
-                      onShowLabelsChange={setShowLabels}
-                      enableFirstPerson={enableFirstPerson}
-                      onEnableFirstPersonChange={setEnableFirstPerson}
-                    />
-                  </div>
-                </CardContent>
+                  </CardHeader>
+                  <CardContent className="p-0 relative">
+                    <TabsContent value="3d" className="m-0">
+                      <div 
+                        id="design-preview-container" 
+                        className="h-[500px] lg:h-[600px] w-full"
+                      >
+                        <DesignPreview3D 
+                          rooms={rooms} 
+                          plotWidth={plotWidth}
+                          plotDepth={plotDepth}
+                          designConfig={designConfig}
+                          showFurniture={showFurniture}
+                          showMaterials={showMaterials}
+                          showWallDecor={showWallDecor}
+                          viewMode={renderMode}
+                          transparentWalls={transparentWalls}
+                          showLabels={showLabels}
+                          enableFirstPerson={enableFirstPerson}
+                        />
+                      </div>
+                      
+                      {/* View Mode Controls Overlay */}
+                      <div className="absolute bottom-4 left-4 z-10">
+                        <ViewModeControls
+                          viewMode={renderMode}
+                          onViewModeChange={setRenderMode}
+                          transparentWalls={transparentWalls}
+                          onTransparentWallsChange={setTransparentWalls}
+                          showLabels={showLabels}
+                          onShowLabelsChange={setShowLabels}
+                          enableFirstPerson={enableFirstPerson}
+                          onEnableFirstPersonChange={setEnableFirstPerson}
+                        />
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="2d" className="m-0">
+                      <div className="h-[500px] lg:h-[600px] w-full">
+                        <InteriorDesign2D 
+                          rooms={rooms}
+                          plotWidth={plotWidth}
+                          plotDepth={plotDepth}
+                          designConfig={designConfig}
+                          showFurniture={showFurniture}
+                          showDecor={showWallDecor}
+                        />
+                      </div>
+                    </TabsContent>
+                  </CardContent>
+                </Tabs>
               </Card>
             </div>
 
