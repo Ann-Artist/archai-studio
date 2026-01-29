@@ -17,6 +17,11 @@ import Team from "./pages/Team";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
+// Interior Designer Pages
+import InteriorDesignerDashboard from "./pages/interior-designer/InteriorDesignerDashboard";
+import InteriorDesignerStyleGenerator from "./pages/interior-designer/InteriorDesignerStyleGenerator";
+import InteriorDesignerDesignPreview from "./pages/interior-designer/InteriorDesignerDesignPreview";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -38,6 +43,12 @@ const App = () => (
             <Route path="/reports" element={<Reports />} />
             <Route path="/team" element={<Team />} />
             <Route path="/settings" element={<Settings />} />
+            
+            {/* Interior Designer Routes */}
+            <Route path="/interior-designer/dashboard" element={<InteriorDesignerDashboard />} />
+            <Route path="/interior-designer/style-generator" element={<InteriorDesignerStyleGenerator />} />
+            <Route path="/interior-designer/design-preview" element={<InteriorDesignerDesignPreview />} />
+            
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

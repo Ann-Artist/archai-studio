@@ -56,6 +56,53 @@ export type Database = {
         }
         Relationships: []
       }
+      interior_designs: {
+        Row: {
+          color_palette: Json | null
+          created_at: string
+          designer_id: string
+          furniture_config: Json | null
+          id: string
+          materials_config: Json | null
+          project_id: string
+          reference_image_url: string | null
+          style: string
+          updated_at: string
+        }
+        Insert: {
+          color_palette?: Json | null
+          created_at?: string
+          designer_id: string
+          furniture_config?: Json | null
+          id?: string
+          materials_config?: Json | null
+          project_id: string
+          reference_image_url?: string | null
+          style?: string
+          updated_at?: string
+        }
+        Update: {
+          color_palette?: Json | null
+          created_at?: string
+          designer_id?: string
+          furniture_config?: Json | null
+          id?: string
+          materials_config?: Json | null
+          project_id?: string
+          reference_image_url?: string | null
+          style?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interior_designs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "floor_plan_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -122,7 +169,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "architect" | "designer" | "client"
+      app_role: "architect" | "designer" | "client" | "interior_designer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -250,7 +297,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["architect", "designer", "client"],
+      app_role: ["architect", "designer", "client", "interior_designer"],
     },
   },
 } as const

@@ -1,17 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
-  Box, 
-  LayoutGrid, 
-  FolderOpen, 
+  Palette, 
+  LayoutDashboard, 
+  Wand2, 
+  Eye, 
   Settings, 
-  LogOut, 
-  Home,
-  Calculator,
-  FileText,
-  Users,
+  LogOut,
   ChevronDown,
-  Palette
+  ArrowLeft
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -22,29 +19,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 
-const Sidebar = () => {
+const InteriorDesignerSidebar = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { user, profile, role, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const sidebarItems = [
-    { icon: Home, label: "Dashboard", href: "/dashboard" },
-    { icon: FolderOpen, label: "Projects", href: "/projects" },
-    { icon: LayoutGrid, label: "Floor Plan Generator", href: "/floor-plan-generator" },
-    { icon: Box, label: "3D Model Preview", href: "/3d-preview" },
-    { icon: Calculator, label: "Cost Estimator", href: "/cost-estimator" },
-    { icon: FileText, label: "Reports", href: "/reports" },
-    { icon: Users, label: "Team", href: "/team" },
-    { icon: Settings, label: "Settings", href: "/settings" },
+    { icon: LayoutDashboard, label: "Dashboard", href: "/interior-designer/dashboard" },
+    { icon: Wand2, label: "Style Generator", href: "/interior-designer/style-generator" },
+    { icon: Eye, label: "Design Preview", href: "/interior-designer/design-preview" },
   ];
-
-  // Interior Designer link - shown only to interior_designer role
-  const interiorDesignerLink = role === "interior_designer" ? {
-    icon: Palette,
-    label: "Interior Designer",
-    href: "/interior-designer/dashboard"
-  } : null;
 
   const handleLogout = async () => {
     await signOut();
@@ -60,36 +45,32 @@ const Sidebar = () => {
       .slice(0, 2);
   };
 
-  const getRoleLabel = (role: string | null) => {
-    switch (role) {
-      case "architect":
-        return "Architect";
-      case "designer":
-        return "Designer";
-      case "client":
-        return "Client";
-      case "interior_designer":
-        return "Interior Designer";
-      default:
-        return "User";
-    }
-  };
-
   const displayName = profile?.full_name || user?.email?.split("@")[0] || "User";
 
   return (
     <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col flex-shrink-0`}>
       {/* Logo */}
       <div className="p-4 border-b border-sidebar-border">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-blueprint-gradient flex items-center justify-center">
-            <Box className="w-5 h-5 text-white" />
+        <Link to="/interior-designer/dashboard" className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center">
+            <Palette className="w-5 h-5 text-white" />
           </div>
           {sidebarOpen && (
             <span className="font-display font-bold text-lg text-sidebar-foreground">
-              AI-in<span className="text-sidebar-primary">Arch</span>
+              Interior<span className="text-accent">Designer</span>
             </span>
           )}
+        </Link>
+      </div>
+
+      {/* Back to Main */}
+      <div className="p-4 border-b border-sidebar-border">
+        <Link
+          to="/dashboard"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {sidebarOpen && <span className="text-sm">Back to Main App</span>}
         </Link>
       </div>
 
@@ -103,7 +84,7 @@ const Sidebar = () => {
               to={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200 ${
                 isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  ? 'bg-accent/20 text-accent'
                   : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
               }`}
             >
@@ -112,24 +93,6 @@ const Sidebar = () => {
             </Link>
           );
         })}
-
-        {/* Interior Designer Link - only for interior_designer role */}
-        {interiorDesignerLink && (
-          <>
-            <div className="my-2 border-t border-sidebar-border" />
-            <Link
-              to={interiorDesignerLink.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200 bg-gradient-to-r from-accent/20 to-accent/10 ${
-                location.pathname.startsWith("/interior-designer")
-                  ? 'text-accent ring-1 ring-accent/50'
-                  : 'text-accent/80 hover:text-accent'
-              }`}
-            >
-              <interiorDesignerLink.icon className="w-5 h-5 flex-shrink-0" />
-              {sidebarOpen && <span className="font-medium">{interiorDesignerLink.label}</span>}
-            </Link>
-          </>
-        )}
       </nav>
 
       {/* User Section */}
@@ -137,7 +100,7 @@ const Sidebar = () => {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-3 w-full p-2 rounded-lg hover:bg-sidebar-accent/50 transition-colors">
-              <div className="w-8 h-8 rounded-full bg-blueprint-gradient flex items-center justify-center text-white font-medium text-sm">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center text-white font-medium text-sm">
                 {getInitials(displayName)}
               </div>
               {sidebarOpen && (
@@ -146,7 +109,7 @@ const Sidebar = () => {
                     <p className="text-sm font-medium text-sidebar-foreground truncate max-w-[120px]">
                       {displayName}
                     </p>
-                    <p className="text-xs text-sidebar-foreground/60">{getRoleLabel(role)}</p>
+                    <p className="text-xs text-sidebar-foreground/60">Interior Designer</p>
                   </div>
                   <ChevronDown className="w-4 h-4 text-sidebar-foreground/60" />
                 </>
@@ -154,7 +117,7 @@ const Sidebar = () => {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/settings")}>
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </DropdownMenuItem>
@@ -170,4 +133,4 @@ const Sidebar = () => {
   );
 };
 
-export default Sidebar;
+export default InteriorDesignerSidebar;
