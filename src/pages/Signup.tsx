@@ -8,7 +8,7 @@ import { Box, Mail, Lock, User, ArrowRight, Eye, EyeOff, Building2 } from "lucid
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-type AppRole = "architect" | "designer" | "client";
+type AppRole = "architect" | "designer" | "client" | "interior_designer";
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -178,7 +178,8 @@ const Signup = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="architect">Architect / Designer</SelectItem>
-                    <SelectItem value="designer">Interior Designer</SelectItem>
+                    <SelectItem value="interior_designer">Interior Designer</SelectItem>
+                    <SelectItem value="designer">General Designer</SelectItem>
                     <SelectItem value="client">Client / Owner</SelectItem>
                   </SelectContent>
                 </Select>
