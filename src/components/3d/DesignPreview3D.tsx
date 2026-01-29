@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { Sofa, CoffeeTable, TVUnit, Bed, Wardrobe, DiningTable, Desk, KitchenCounter, Refrigerator, Toilet, Bathtub, Plant } from "./Furniture";
 import { Door, Window, SlidingDoor, BathroomWindow } from "./DoorsAndWindows";
 import { ScaleIndicator, PlotDimensions, EnhancedCompass } from "./ScaleIndicator";
+import { getWallDecorForRoom } from "./WallDecor";
 
 interface RoomConfig {
   name: string;
@@ -30,6 +31,7 @@ interface DesignPreview3DProps {
   designConfig: DesignConfig;
   showFurniture: boolean;
   showMaterials: boolean;
+  showWallDecor?: boolean;
   viewMode: "realistic" | "wireframe";
   transparentWalls: boolean;
   showLabels: boolean;
@@ -293,6 +295,7 @@ const DesignPreview3D = ({
   designConfig,
   showFurniture,
   showMaterials,
+  showWallDecor = true,
   viewMode,
   transparentWalls,
   showLabels,
@@ -402,6 +405,12 @@ const DesignPreview3D = ({
               style={designConfig.style}
               showFurniture={showFurniture && designConfig.furnitureEnabled}
             />
+            {/* Wall Decorations */}
+            {showWallDecor && !transparentWalls && viewMode !== "wireframe" && (
+              <group>
+                {getWallDecorForRoom(room, designConfig.style)}
+              </group>
+            )}
           </group>
         ))}
 

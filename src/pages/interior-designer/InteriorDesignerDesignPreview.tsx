@@ -12,7 +12,8 @@ import {
   PaintBucket,
   Palette,
   RefreshCw,
-  Layers
+  Layers,
+  Frame
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -94,6 +95,7 @@ const InteriorDesignerDesignPreview = () => {
   // Overlay toggles
   const [showFurniture, setShowFurniture] = useState(true);
   const [showMaterials, setShowMaterials] = useState(true);
+  const [showWallDecor, setShowWallDecor] = useState(true);
 
   useEffect(() => {
     if (role && role !== "interior_designer") {
@@ -199,6 +201,7 @@ const InteriorDesignerDesignPreview = () => {
     setDesignConfig(defaultDesignConfig);
     setShowFurniture(true);
     setShowMaterials(true);
+    setShowWallDecor(true);
     setRenderMode("realistic");
     setTransparentWalls(false);
     setShowLabels(true);
@@ -287,6 +290,7 @@ const InteriorDesignerDesignPreview = () => {
                       designConfig={designConfig}
                       showFurniture={showFurniture}
                       showMaterials={showMaterials}
+                      showWallDecor={showWallDecor}
                       viewMode={renderMode}
                       transparentWalls={transparentWalls}
                       showLabels={showLabels}
@@ -365,6 +369,18 @@ const InteriorDesignerDesignPreview = () => {
                       id="materials-toggle"
                       checked={showMaterials}
                       onCheckedChange={setShowMaterials}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="decor-toggle" className="flex items-center gap-2 text-sm">
+                      <Frame className="w-4 h-4 text-muted-foreground" />
+                      Wall Decor
+                    </Label>
+                    <Switch 
+                      id="decor-toggle"
+                      checked={showWallDecor}
+                      onCheckedChange={setShowWallDecor}
                     />
                   </div>
                 </CardContent>
