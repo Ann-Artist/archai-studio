@@ -15,7 +15,10 @@ import {
   Layers,
   Frame,
   Grid3X3,
-  Box
+  Box,
+  ImageIcon,
+  PanelRightOpen,
+  PanelRightClose
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +27,8 @@ import InteriorDesignerSidebar from "@/components/layout/InteriorDesignerSidebar
 import DesignPreview3D from "@/components/3d/DesignPreview3D";
 import InteriorDesign2D from "@/components/2d/InteriorDesign2D";
 import ViewModeControls from "@/components/3d/ViewModeControls";
+import { FurnitureCatalogPanel } from "@/components/interior-designer/FurnitureCatalogPanel";
+import { useFurnitureGeneration } from "@/hooks/useFurnitureGeneration";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -100,6 +105,16 @@ const InteriorDesignerDesignPreview = () => {
   const [showFurniture, setShowFurniture] = useState(true);
   const [showMaterials, setShowMaterials] = useState(true);
   const [showWallDecor, setShowWallDecor] = useState(true);
+  
+  // Furniture catalog
+  const [showCatalogPanel, setShowCatalogPanel] = useState(true);
+  const [selectedMaterial, setSelectedMaterial] = useState("fabric");
+  const { 
+    isGenerating, 
+    recommendations, 
+    generateAllRoomsFurniture,
+    clearRecommendations 
+  } = useFurnitureGeneration();
 
   useEffect(() => {
     if (role && role !== "interior_designer") {
@@ -210,7 +225,12 @@ const InteriorDesignerDesignPreview = () => {
     setTransparentWalls(false);
     setShowLabels(true);
     setEnableFirstPerson(false);
+    clearRecommendations();
     toast.success("Preview reset to defaults");
+  };
+
+  const handleGenerateFurniture = async (style: string, material: string) => {
+    await generateAllRoomsFurniture(rooms, style, material, designConfig.colorPalette, 2);
   };
 
   if (isLoading) {
@@ -237,6 +257,18 @@ const InteriorDesignerDesignPreview = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowCatalogPanel(!showCatalogPanel)}
+              >
+                {showCatalogPanel ? (
+                  <PanelRightClose className="w-4 h-4 mr-2" />
+                ) : (
+                  <PanelRightOpen className="w-4 h-4 mr-2" />
+                )}
+                {showCatalogPanel ? "Hide Catalog" : "Show Catalog"}
+              </Button>
               <Button variant="outline" size="sm" onClick={handleReset}>
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Reset
@@ -255,9 +287,9 @@ const InteriorDesignerDesignPreview = () => {
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
-          <div className="grid lg:grid-cols-4 gap-6">
+          <div className="flex gap-6">
             {/* Design Viewer with 2D/3D toggle */}
-            <div className="lg:col-span-3">
+            <div className={`flex-1 ${showCatalogPanel ? "" : "max-w-full"}`}>
               <Card className="overflow-hidden">
                 <Tabs defaultValue="3d" className="w-full">
                   <CardHeader className="py-3 px-4 border-b border-border">
@@ -342,117 +374,138 @@ const InteriorDesignerDesignPreview = () => {
               </Card>
             </div>
 
-            {/* Controls Panel */}
-            <div className="space-y-4">
-              {/* Style Switcher */}
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Palette className="w-4 h-4" />
-                    Change Style
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <Select value={designConfig.style} onValueChange={handleStyleChange}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DESIGN_STYLES.map((style) => (
-                        <SelectItem key={style.id} value={style.id}>
-                          {style.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
+            {/* Furniture Catalog Panel - Collapsible */}
+            {showCatalogPanel && (
+              <div className="w-80 flex-shrink-0">
+                <FurnitureCatalogPanel
+                  rooms={rooms}
+                  designStyle={designConfig.style}
+                  colorPalette={designConfig.colorPalette}
+                  recommendations={recommendations}
+                  isGenerating={isGenerating}
+                  showFurniture={showFurniture}
+                  selectedMaterial={selectedMaterial}
+                  onStyleChange={handleStyleChange}
+                  onMaterialChange={setSelectedMaterial}
+                  onGenerate={handleGenerateFurniture}
+                  onToggleFurniture={() => setShowFurniture(!showFurniture)}
+                />
+              </div>
+            )}
 
-              {/* Overlay Toggles */}
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm">Toggle Overlays</CardTitle>
-                  <CardDescription className="text-xs">Show/hide design elements</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 pt-0">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="furniture-toggle" className="flex items-center gap-2 text-sm">
-                      <Sofa className="w-4 h-4 text-muted-foreground" />
-                      Furniture
-                    </Label>
-                    <Switch 
-                      id="furniture-toggle"
-                      checked={showFurniture}
-                      onCheckedChange={setShowFurniture}
-                    />
-                  </div>
+            {/* Controls Panel - Only show when catalog is hidden */}
+            {!showCatalogPanel && (
+              <div className="w-64 flex-shrink-0 space-y-4">
+                {/* Style Switcher */}
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Palette className="w-4 h-4" />
+                      Change Style
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Select value={designConfig.style} onValueChange={handleStyleChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DESIGN_STYLES.map((style) => (
+                          <SelectItem key={style.id} value={style.id}>
+                            {style.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </CardContent>
+                </Card>
 
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="materials-toggle" className="flex items-center gap-2 text-sm">
-                      <PaintBucket className="w-4 h-4 text-muted-foreground" />
-                      Materials
-                    </Label>
-                    <Switch 
-                      id="materials-toggle"
-                      checked={showMaterials}
-                      onCheckedChange={setShowMaterials}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="decor-toggle" className="flex items-center gap-2 text-sm">
-                      <Frame className="w-4 h-4 text-muted-foreground" />
-                      Wall Decor
-                    </Label>
-                    <Switch 
-                      id="decor-toggle"
-                      checked={showWallDecor}
-                      onCheckedChange={setShowWallDecor}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Color Palette */}
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm">Color Palette</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex flex-wrap gap-2">
-                    {designConfig.colorPalette.map((color, i) => (
-                      <div 
-                        key={i}
-                        className="w-10 h-10 rounded-lg border-2 border-white shadow-md cursor-pointer hover:scale-110 transition-transform"
-                        style={{ backgroundColor: color }}
-                        title={color}
+                {/* Overlay Toggles */}
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm">Toggle Overlays</CardTitle>
+                    <CardDescription className="text-xs">Show/hide design elements</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4 pt-0">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="furniture-toggle" className="flex items-center gap-2 text-sm">
+                        <Sofa className="w-4 h-4 text-muted-foreground" />
+                        Furniture
+                      </Label>
+                      <Switch 
+                        id="furniture-toggle"
+                        checked={showFurniture}
+                        onCheckedChange={setShowFurniture}
                       />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </div>
 
-              {/* Actions */}
-              <Card>
-                <CardContent className="p-4 space-y-2">
-                  <Button 
-                    className="w-full" 
-                    onClick={() => navigate("/interior-designer/style-generator")}
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Generate New Design
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={handleReset}
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Reset Preview
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="materials-toggle" className="flex items-center gap-2 text-sm">
+                        <PaintBucket className="w-4 h-4 text-muted-foreground" />
+                        Materials
+                      </Label>
+                      <Switch 
+                        id="materials-toggle"
+                        checked={showMaterials}
+                        onCheckedChange={setShowMaterials}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="decor-toggle" className="flex items-center gap-2 text-sm">
+                        <Frame className="w-4 h-4 text-muted-foreground" />
+                        Wall Decor
+                      </Label>
+                      <Switch 
+                        id="decor-toggle"
+                        checked={showWallDecor}
+                        onCheckedChange={setShowWallDecor}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Color Palette */}
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm">Color Palette</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex flex-wrap gap-2">
+                      {designConfig.colorPalette.map((color, i) => (
+                        <div 
+                          key={i}
+                          className="w-10 h-10 rounded-lg border-2 border-white shadow-md cursor-pointer hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Actions */}
+                <Card>
+                  <CardContent className="p-4 space-y-2">
+                    <Button 
+                      className="w-full" 
+                      onClick={() => navigate("/interior-designer/style-generator")}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Generate New Design
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={handleReset}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Reset Preview
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
         </main>
       </div>
