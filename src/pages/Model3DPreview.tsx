@@ -15,12 +15,14 @@ import {
   Loader2,
   FolderOpen,
   Layers,
-  Grid2X2
+  Grid2X2,
+  Home
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import RealisticFloorPlan3D from "@/components/3d/RealisticFloorPlan3D";
+import ArchitecturalFloorPlan3D from "@/components/3d/ArchitecturalFloorPlan3D";
 import FloorPlan2D from "@/components/2d/FloorPlan2D";
 import ViewModeControls from "@/components/3d/ViewModeControls";
 import RoomConfigurator from "@/components/3d/RoomConfigurator";
@@ -69,7 +71,7 @@ const Model3DPreview = () => {
   const [projects, setProjects] = useState<FloorPlanProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [currentProjectName, setCurrentProjectName] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
+  const [viewMode, setViewMode] = useState<"3d" | "2d" | "architectural">("architectural");
   
   // 3D View controls state
   const [renderMode, setRenderMode] = useState<"realistic" | "wireframe">("realistic");
@@ -228,14 +230,16 @@ const Model3DPreview = () => {
         <header className="border-b border-border bg-card px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {viewMode === "3d" ? (
+              {viewMode === "architectural" ? (
+                <Home className="w-6 h-6 text-blueprint" />
+              ) : viewMode === "3d" ? (
                 <Box className="w-6 h-6 text-blueprint" />
               ) : (
                 <Grid2X2 className="w-6 h-6 text-blueprint" />
               )}
               <div>
                 <h1 className="text-xl font-display font-bold">
-                  {viewMode === "3d" ? "3D Model Preview" : "2D Floor Plan"}
+                  {viewMode === "architectural" ? "Realistic 3D View" : viewMode === "3d" ? "3D Model Preview" : "2D Floor Plan"}
                 </h1>
                 {currentProjectName && (
                   <p className="text-xs text-muted-foreground">{currentProjectName}</p>
@@ -245,6 +249,15 @@ const Model3DPreview = () => {
             <div className="flex items-center gap-2">
               {/* View Mode Toggle */}
               <div className="flex items-center border border-border rounded-md overflow-hidden mr-2">
+                <Button
+                  variant={viewMode === "architectural" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none border-0"
+                  onClick={() => setViewMode("architectural")}
+                >
+                  <Home className="w-4 h-4 mr-1" />
+                  Realistic
+                </Button>
                 <Button
                   variant={viewMode === "3d" ? "default" : "ghost"}
                   size="sm"
@@ -291,13 +304,15 @@ const Model3DPreview = () => {
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4 text-blueprint" />
                     <CardTitle className="text-sm font-medium">
-                      {viewMode === "3d" ? "3D Viewport" : "2D Blueprint"}
+                      {viewMode === "architectural" ? "Realistic Architectural View" : viewMode === "3d" ? "3D Viewport" : "2D Blueprint"}
                     </CardTitle>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {viewMode === "3d" 
-                      ? "Drag to rotate • Scroll to zoom • Shift+drag to pan"
-                      : "Hover over rooms for details"
+                    {viewMode === "architectural"
+                      ? "Top-down orthographic • Drag to pan • Scroll to zoom"
+                      : viewMode === "3d" 
+                        ? "Drag to rotate • Scroll to zoom • Shift+drag to pan"
+                        : "Hover over rooms for details"
                     }
                   </span>
                 </div>
@@ -307,7 +322,13 @@ const Model3DPreview = () => {
                   id="3d-container" 
                   className="h-[500px] lg:h-[600px] w-full"
                 >
-                  {viewMode === "3d" ? (
+                  {viewMode === "architectural" ? (
+                    <ArchitecturalFloorPlan3D 
+                      rooms={rooms} 
+                      plotWidth={plotWidth}
+                      plotDepth={plotDepth}
+                    />
+                  ) : viewMode === "3d" ? (
                     <RealisticFloorPlan3D 
                       rooms={rooms} 
                       plotWidth={plotWidth}
@@ -326,7 +347,7 @@ const Model3DPreview = () => {
                   )}
                 </div>
                 
-                {/* 3D View Mode Controls Overlay */}
+                {/* 3D View Mode Controls Overlay - only show for standard 3D mode */}
                 {viewMode === "3d" && (
                   <div className="absolute bottom-4 left-4 z-10">
                     <ViewModeControls
