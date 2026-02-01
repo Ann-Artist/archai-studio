@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import RealisticFloorPlan3D from "@/components/3d/RealisticFloorPlan3D";
+import IsometricFloorPlan3D from "@/components/3d/IsometricFloorPlan3D";
 import ArchitecturalFloorPlan3D from "@/components/3d/ArchitecturalFloorPlan3D";
 import FloorPlan2D from "@/components/2d/FloorPlan2D";
 import ViewModeControls from "@/components/3d/ViewModeControls";
@@ -71,7 +72,7 @@ const Model3DPreview = () => {
   const [projects, setProjects] = useState<FloorPlanProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [currentProjectName, setCurrentProjectName] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"3d" | "2d" | "architectural">("architectural");
+  const [viewMode, setViewMode] = useState<"3d" | "2d" | "architectural" | "isometric">("isometric");
   
   // 3D View controls state
   const [renderMode, setRenderMode] = useState<"realistic" | "wireframe">("realistic");
@@ -230,7 +231,9 @@ const Model3DPreview = () => {
         <header className="border-b border-border bg-card px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {viewMode === "architectural" ? (
+              {viewMode === "isometric" ? (
+                <Home className="w-6 h-6 text-blueprint" />
+              ) : viewMode === "architectural" ? (
                 <Home className="w-6 h-6 text-blueprint" />
               ) : viewMode === "3d" ? (
                 <Box className="w-6 h-6 text-blueprint" />
@@ -239,7 +242,7 @@ const Model3DPreview = () => {
               )}
               <div>
                 <h1 className="text-xl font-display font-bold">
-                  {viewMode === "architectural" ? "Realistic 3D View" : viewMode === "3d" ? "3D Model Preview" : "2D Floor Plan"}
+                  {viewMode === "isometric" ? "Isometric 3D View" : viewMode === "architectural" ? "Realistic 3D View" : viewMode === "3d" ? "3D Model Preview" : "2D Floor Plan"}
                 </h1>
                 {currentProjectName && (
                   <p className="text-xs text-muted-foreground">{currentProjectName}</p>
@@ -249,6 +252,15 @@ const Model3DPreview = () => {
             <div className="flex items-center gap-2">
               {/* View Mode Toggle */}
               <div className="flex items-center border border-border rounded-md overflow-hidden mr-2">
+                <Button
+                  variant={viewMode === "isometric" ? "default" : "ghost"}
+                  size="sm"
+                  className="rounded-none border-0"
+                  onClick={() => setViewMode("isometric")}
+                >
+                  <Home className="w-4 h-4 mr-1" />
+                  Isometric
+                </Button>
                 <Button
                   variant={viewMode === "architectural" ? "default" : "ghost"}
                   size="sm"
@@ -304,12 +316,14 @@ const Model3DPreview = () => {
                   <div className="flex items-center gap-2">
                     <Eye className="w-4 h-4 text-blueprint" />
                     <CardTitle className="text-sm font-medium">
-                      {viewMode === "architectural" ? "Realistic Architectural View" : viewMode === "3d" ? "3D Viewport" : "2D Blueprint"}
+                      {viewMode === "isometric" ? "Isometric 3D View" : viewMode === "architectural" ? "Realistic Architectural View" : viewMode === "3d" ? "3D Viewport" : "2D Blueprint"}
                     </CardTitle>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {viewMode === "architectural"
-                      ? "Top-down orthographic • Drag to pan • Scroll to zoom"
+                    {viewMode === "isometric"
+                      ? "Isometric view • Drag to rotate • Scroll to zoom"
+                      : viewMode === "architectural"
+                        ? "Top-down orthographic • Drag to pan • Scroll to zoom"
                       : viewMode === "3d" 
                         ? "Drag to rotate • Scroll to zoom • Shift+drag to pan"
                         : "Hover over rooms for details"
@@ -322,7 +336,13 @@ const Model3DPreview = () => {
                   id="3d-container" 
                   className="h-[500px] lg:h-[600px] w-full"
                 >
-                  {viewMode === "architectural" ? (
+                  {viewMode === "isometric" ? (
+                    <IsometricFloorPlan3D 
+                      rooms={rooms} 
+                      plotWidth={plotWidth}
+                      plotDepth={plotDepth}
+                    />
+                  ) : viewMode === "architectural" ? (
                     <ArchitecturalFloorPlan3D 
                       rooms={rooms} 
                       plotWidth={plotWidth}
