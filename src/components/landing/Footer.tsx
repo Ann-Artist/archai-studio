@@ -13,7 +13,7 @@ const Footer = () => {
                 <Box className="w-5 h-5 text-white" />
               </div>
               <span className="font-display font-bold text-xl text-white">
-                AI-in<span className="text-blueprint">Arch</span>
+                Archi<span className="text-blueprint">Ai</span>
               </span>
             </Link>
             <p className="text-primary-foreground/60 text-sm mb-4">
@@ -79,7 +79,7 @@ const Footer = () => {
         <div className="mt-16 pt-8 border-t border-primary-foreground/10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-primary-foreground/50 text-sm">
-              © 2026 AI-in Architecture. All rights reserved.
+              © 2026 ArchiAi. All rights reserved.
             </p>
             <p className="text-primary-foreground/50 text-sm">
               Designed with ❤️ for architects worldwide

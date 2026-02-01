@@ -42,7 +42,7 @@ const Navbar = () => {
               "font-display font-bold text-xl",
               isLandingPage ? "text-white" : "text-foreground"
             )}>
-              AI-in<span className="text-blueprint">Architecture</span>
+              Archi<span className="text-blueprint">Ai</span>
             </span>
           </Link>
 
