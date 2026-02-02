@@ -144,14 +144,21 @@ The floor plan should:
     );
 
     if (!imageResponse.ok) {
+      const errorText = await imageResponse.text();
+      console.error("Gemini API error:", imageResponse.status, errorText);
+      
       if (imageResponse.status === 429) {
         return new Response(JSON.stringify({ error: "API is busy. Please wait a moment and try again." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const errorText = await imageResponse.text();
-      console.error("Gemini API error:", imageResponse.status, errorText);
+      if (imageResponse.status === 402) {
+        return new Response(JSON.stringify({ error: "Lovable credits are syncing. Please wait 5-10 minutes and try again, or check your subscription status in Settings." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ error: "Failed to generate floor plan image. Please try again." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
