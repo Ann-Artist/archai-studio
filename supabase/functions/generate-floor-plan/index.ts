@@ -87,7 +87,7 @@ The floor plan should:
 
     // Generate floor plan image using Gemini API directly
     const imageResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -169,7 +169,7 @@ Example format:
 [{"name":"Living Room","width":6,"depth":5,"height":3,"position":[-3,1.5,0]},{"name":"Kitchen","width":4,"depth":4,"height":3,"position":[3,1.5,-2]}]`;
 
     const coordsResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: {
