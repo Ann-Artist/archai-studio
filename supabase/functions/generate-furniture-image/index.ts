@@ -6,12 +6,49 @@ const corsHeaders = {
 };
 
 interface FurnitureRequest {
-  category: string; // sofa, bed, dining table, chair, lamp, wardrobe, desk, etc.
-  style: string; // modern, minimal, luxury, rustic, scandinavian, industrial, bohemian
-  material: string; // wood, fabric, leather, metal, glass, velvet
-  color: string; // hex color or color name
-  roomType: string; // living room, bedroom, kitchen, etc.
+  category: string;
+  style: string;
+  material: string;
+  color: string;
+  roomType: string;
   dimensions?: { width: number; depth: number; height: number };
+}
+
+// Helper function to wait
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry fetch with exponential backoff for rate limits
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  maxRetries: number = 5,
+  initialDelay: number = 2000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      if (response.status === 429) {
+        const waitTime = initialDelay * Math.pow(2, attempt);
+        console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await delay(waitTime);
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      const waitTime = initialDelay * Math.pow(2, attempt);
+      console.log(`Request failed. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+      await delay(waitTime);
+    }
+  }
+  
+  throw lastError || new Error("Max retries exceeded");
 }
 
 serve(async (req) => {
@@ -34,15 +71,13 @@ serve(async (req) => {
       throw new Error("Furniture category is required");
     }
 
-    // Build a detailed prompt for realistic furniture generation
     const styleDescription = getStyleDescription(furniture.style);
     const materialDescription = getMaterialDescription(furniture.material);
-    
     const prompt = buildFurniturePrompt(furniture, styleDescription, materialDescription, referenceStyle);
 
-    console.log("Generating furniture image with prompt:", prompt);
+    console.log("Generating furniture image with retry logic...");
 
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
@@ -55,13 +90,15 @@ serve(async (req) => {
             responseModalities: ["TEXT", "IMAGE"],
           },
         }),
-      }
+      },
+      5,
+      3000
     );
 
     if (!response.ok) {
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          JSON.stringify({ error: "API is busy. Please wait and try again." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -88,7 +125,6 @@ serve(async (req) => {
       throw new Error("No image generated");
     }
 
-    // Generate furniture metadata
     const metadata = generateFurnitureMetadata(furniture);
 
     return new Response(
@@ -172,7 +208,6 @@ function buildFurniturePrompt(
 }
 
 function generateFurnitureMetadata(furniture: FurnitureRequest) {
-  // Generate realistic dimensions based on category
   const defaultDimensions: Record<string, { width: number; depth: number; height: number }> = {
     sofa: { width: 220, depth: 95, height: 85 },
     bed: { width: 180, depth: 200, height: 45 },
@@ -227,8 +262,6 @@ function generatePriceRange(category: string, style: string): { min: number; max
   };
 
   const base = basePrices[category.toLowerCase()] || { min: 200, max: 1000 };
-  
-  // Luxury style increases price
   const multiplier = style?.toLowerCase() === "luxury" ? 2 : 1;
   
   return {
