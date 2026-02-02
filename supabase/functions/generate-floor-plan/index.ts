@@ -39,6 +39,44 @@ function getRoomColor(roomName: string): string {
   return ROOM_COLORS.default;
 }
 
+// Helper function to wait
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Retry fetch with exponential backoff for rate limits
+async function fetchWithRetry(
+  url: string, 
+  options: RequestInit, 
+  maxRetries: number = 5,
+  initialDelay: number = 2000
+): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      
+      if (response.status === 429) {
+        // Rate limited - wait and retry with exponential backoff
+        const waitTime = initialDelay * Math.pow(2, attempt);
+        console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await delay(waitTime);
+        continue;
+      }
+      
+      return response;
+    } catch (error) {
+      lastError = error as Error;
+      const waitTime = initialDelay * Math.pow(2, attempt);
+      console.log(`Request failed. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+      await delay(waitTime);
+    }
+  }
+  
+  throw lastError || new Error("Max retries exceeded");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -83,10 +121,10 @@ The floor plan should:
 - Include a scale indicator
 - Look like a professional architect's floor plan drawing`;
 
-    console.log("Generating floor plan image...");
+    console.log("Generating floor plan image with retry logic...");
 
-    // Generate floor plan image using Gemini API directly
-    const imageResponse = await fetch(
+    // Generate floor plan image using Gemini API with retry
+    const imageResponse = await fetchWithRetry(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
@@ -99,19 +137,21 @@ The floor plan should:
             responseModalities: ["TEXT", "IMAGE"],
           },
         }),
-      }
+      },
+      5, // max retries
+      3000 // initial delay 3 seconds
     );
 
     if (!imageResponse.ok) {
       if (imageResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+        return new Response(JSON.stringify({ error: "API is busy. Please wait a moment and try again." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errorText = await imageResponse.text();
       console.error("Gemini API error:", imageResponse.status, errorText);
-      return new Response(JSON.stringify({ error: "Failed to generate floor plan image" }), {
+      return new Response(JSON.stringify({ error: "Failed to generate floor plan image. Please try again." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -142,6 +182,9 @@ The floor plan should:
       });
     }
 
+    // Wait a bit before making the second API call to avoid rate limits
+    await delay(2000);
+
     // Now generate room coordinates using AI
     const coordsPrompt = `You are an architectural AI that converts room specifications into 3D coordinates for visualization.
 
@@ -168,26 +211,28 @@ Respond ONLY with a valid JSON array of room objects. No explanation, just the J
 Example format:
 [{"name":"Living Room","width":6,"depth":5,"height":3,"position":[-3,1.5,0]},{"name":"Kitchen","width":4,"depth":4,"height":3,"position":[3,1.5,-2]}]`;
 
-    const coordsResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: coordsPrompt }] }],
-        }),
-      }
-    );
-
     let roomCoordinates: RoomCoordinates[] = [];
 
-    if (coordsResponse.ok) {
-      const coordsData = await coordsResponse.json();
-      const coordsText = coordsData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      
-      try {
+    try {
+      const coordsResponse = await fetchWithRetry(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: coordsPrompt }] }],
+          }),
+        },
+        3, // fewer retries for coordinates
+        2000
+      );
+
+      if (coordsResponse.ok) {
+        const coordsData = await coordsResponse.json();
+        const coordsText = coordsData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        
         // Extract JSON from response (handle markdown code blocks)
         const jsonMatch = coordsText.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
@@ -202,9 +247,9 @@ Example format:
           }));
           console.log("Generated room coordinates:", roomCoordinates.length, "rooms");
         }
-      } catch (parseError) {
-        console.error("Failed to parse room coordinates:", parseError);
       }
+    } catch (parseError) {
+      console.error("Failed to get room coordinates, using fallback:", parseError);
     }
 
     // Fallback: generate simple coordinates if AI failed
@@ -300,7 +345,6 @@ Example format:
 
     if (projectError) {
       console.error("Failed to save project:", projectError);
-      // Don't fail the request, just log the error
     } else {
       console.log("Project saved with ID:", projectData?.id);
     }
