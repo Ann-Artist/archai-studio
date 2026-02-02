@@ -47,9 +47,9 @@ serve(async (req) => {
   try {
     const { plotSize, rooms, style, additionalNotes, userId } = await req.json();
     
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -85,21 +85,22 @@ The floor plan should:
 
     console.log("Generating floor plan image...");
 
-    // Generate floor plan image
-    const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [
-          { role: "user", content: imagePrompt }
-        ],
-        modalities: ["image", "text"],
-      }),
-    });
+    // Generate floor plan image using Gemini API directly
+    const imageResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: imagePrompt }] }],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+          },
+        }),
+      }
+    );
 
     if (!imageResponse.ok) {
       if (imageResponse.status === 429) {
@@ -108,14 +109,8 @@ The floor plan should:
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (imageResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required. Please add credits to continue." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const errorText = await imageResponse.text();
-      console.error("AI gateway error:", imageResponse.status, errorText);
+      console.error("Gemini API error:", imageResponse.status, errorText);
       return new Response(JSON.stringify({ error: "Failed to generate floor plan image" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -123,12 +118,21 @@ The floor plan should:
     }
 
     const imageData = await imageResponse.json();
-    console.log("AI image response received");
+    console.log("Gemini image response received");
 
-    // Extract image from response
-    const message = imageData.choices?.[0]?.message;
-    const imageUrl = message?.images?.[0]?.image_url?.url;
-    const textContent = message?.content || "";
+    // Extract image from Gemini response format
+    const parts = imageData.candidates?.[0]?.content?.parts || [];
+    let imageUrl = "";
+    let textContent = "";
+    
+    for (const part of parts) {
+      if (part.inlineData) {
+        imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+      if (part.text) {
+        textContent = part.text;
+      }
+    }
 
     if (!imageUrl) {
       console.error("No image in response:", JSON.stringify(imageData));
@@ -164,25 +168,24 @@ Respond ONLY with a valid JSON array of room objects. No explanation, just the J
 Example format:
 [{"name":"Living Room","width":6,"depth":5,"height":3,"position":[-3,1.5,0]},{"name":"Kitchen","width":4,"depth":4,"height":3,"position":[3,1.5,-2]}]`;
 
-    const coordsResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "user", content: coordsPrompt }
-        ],
-      }),
-    });
+    const coordsResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: coordsPrompt }] }],
+        }),
+      }
+    );
 
     let roomCoordinates: RoomCoordinates[] = [];
 
     if (coordsResponse.ok) {
       const coordsData = await coordsResponse.json();
-      const coordsText = coordsData.choices?.[0]?.message?.content || "";
+      const coordsText = coordsData.candidates?.[0]?.content?.parts?.[0]?.text || "";
       
       try {
         // Extract JSON from response (handle markdown code blocks)
