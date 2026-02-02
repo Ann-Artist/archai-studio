@@ -57,9 +57,9 @@ serve(async (req) => {
   }
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     const { furniture, referenceStyle } = await req.json() as { 
@@ -75,20 +75,21 @@ serve(async (req) => {
     const materialDescription = getMaterialDescription(furniture.material);
     const prompt = buildFurniturePrompt(furniture, styleDescription, materialDescription, referenceStyle);
 
-    console.log("Generating furniture image with retry logic...");
+    console.log("Generating furniture image with Lovable AI...");
 
     const response = await fetchWithRetry(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`,
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"],
-          },
+          model: "google/gemini-3-pro-image-preview",
+          messages: [
+            { role: "user", content: prompt }
+          ],
         }),
       },
       5,
@@ -108,16 +109,27 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const parts = data.candidates?.[0]?.content?.parts || [];
+    console.log("Lovable AI furniture response received:", JSON.stringify(data).slice(0, 500));
+    
     let imageUrl = "";
     let description = "";
     
-    for (const part of parts) {
-      if (part.inlineData) {
-        imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    // Lovable AI returns data in OpenAI-compatible format
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (typeof content === "string") {
+      const base64Match = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
+      if (base64Match) {
+        imageUrl = base64Match[0];
       }
-      if (part.text) {
-        description = part.text;
+      description = content.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '').trim();
+    } else if (Array.isArray(content)) {
+      for (const item of content) {
+        if (item.type === "image_url" && item.image_url?.url) {
+          imageUrl = item.image_url.url;
+        } else if (item.type === "text") {
+          description = item.text || "";
+        }
       }
     }
 

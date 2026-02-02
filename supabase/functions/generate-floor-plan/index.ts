@@ -85,9 +85,9 @@ serve(async (req) => {
   try {
     const { plotSize, rooms, style, additionalNotes, userId } = await req.json();
     
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not configured");
+const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -123,19 +123,20 @@ The floor plan should:
 
     console.log("Generating floor plan image with retry logic...");
 
-    // Generate floor plan image using Gemini API with retry
+    // Generate floor plan image using Lovable AI with retry
     const imageResponse = await fetchWithRetry(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`,
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: imagePrompt }] }],
-          generationConfig: {
-            responseModalities: ["TEXT", "IMAGE"],
-          },
+          model: "google/gemini-3-pro-image-preview",
+          messages: [
+            { role: "user", content: imagePrompt }
+          ],
         }),
       },
       5, // max retries
@@ -158,19 +159,30 @@ The floor plan should:
     }
 
     const imageData = await imageResponse.json();
-    console.log("Gemini image response received");
+    console.log("Lovable AI image response received:", JSON.stringify(imageData).slice(0, 500));
 
-    // Extract image from Gemini response format
-    const parts = imageData.candidates?.[0]?.content?.parts || [];
+    // Extract image from Lovable AI response format
     let imageUrl = "";
     let textContent = "";
     
-    for (const part of parts) {
-      if (part.inlineData) {
-        imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    // Lovable AI returns data in OpenAI-compatible format
+    const content = imageData.choices?.[0]?.message?.content;
+    
+    if (typeof content === "string") {
+      // Check if content contains base64 image data
+      const base64Match = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
+      if (base64Match) {
+        imageUrl = base64Match[0];
       }
-      if (part.text) {
-        textContent = part.text;
+      textContent = content.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '').trim();
+    } else if (Array.isArray(content)) {
+      // Handle array format with image_url objects
+      for (const item of content) {
+        if (item.type === "image_url" && item.image_url?.url) {
+          imageUrl = item.image_url.url;
+        } else if (item.type === "text") {
+          textContent = item.text || "";
+        }
       }
     }
 
@@ -215,14 +227,18 @@ Example format:
 
     try {
       const coordsResponse = await fetchWithRetry(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
           },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: coordsPrompt }] }],
+            model: "google/gemini-3-flash-preview",
+            messages: [
+              { role: "user", content: coordsPrompt }
+            ],
           }),
         },
         3, // fewer retries for coordinates
@@ -231,7 +247,7 @@ Example format:
 
       if (coordsResponse.ok) {
         const coordsData = await coordsResponse.json();
-        const coordsText = coordsData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const coordsText = coordsData.choices?.[0]?.message?.content || "";
         
         // Extract JSON from response (handle markdown code blocks)
         const jsonMatch = coordsText.match(/\[[\s\S]*\]/);
