@@ -85,9 +85,10 @@ serve(async (req) => {
   try {
     const { plotSize, rooms, style, additionalNotes, userId } = await req.json();
     
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    // Use Lovable AI gateway (automatically provisioned)
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      throw new Error("LOVABLE_API_KEY is not configured. Please ensure workspace AI credits are available.");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -121,9 +122,9 @@ The floor plan should:
 - Include a scale indicator
 - Look like a professional architect's floor plan drawing`;
 
-    console.log("Generating floor plan image with retry logic...");
+    console.log("Generating floor plan image with Lovable AI...");
 
-    // Generate floor plan image using Lovable AI with retry
+    // Generate floor plan image using Lovable AI Gateway
     const imageResponse = await fetchWithRetry(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -153,9 +154,9 @@ The floor plan should:
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (imageResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Lovable credits are syncing. Please wait 5-10 minutes and try again, or check your subscription status in Settings." }), {
-          status: 402,
+      if (imageResponse.status === 403) {
+        return new Response(JSON.stringify({ error: "Invalid API key. Please check your Gemini API key in Settings." }), {
+          status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -166,13 +167,12 @@ The floor plan should:
     }
 
     const imageData = await imageResponse.json();
-    console.log("Lovable AI image response received:", JSON.stringify(imageData).slice(0, 500));
+    console.log("Lovable AI response received:", JSON.stringify(imageData).slice(0, 500));
 
-    // Extract image from Lovable AI response format
+    // Extract image from Lovable AI response (OpenAI-compatible format)
     let imageUrl = "";
     let textContent = "";
     
-    // Lovable AI returns data in OpenAI-compatible format
     const content = imageData.choices?.[0]?.message?.content;
     
     if (typeof content === "string") {
