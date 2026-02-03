@@ -125,6 +125,7 @@ The floor plan should:
     console.log("Generating floor plan image with Lovable AI...");
 
     // Generate floor plan image using Lovable AI Gateway
+    // CRITICAL: Must include modalities: ["image", "text"] for image generation
     const imageResponse = await fetchWithRetry(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
       {
@@ -138,6 +139,7 @@ The floor plan should:
           messages: [
             { role: "user", content: imagePrompt }
           ],
+          modalities: ["image", "text"], // Required for image generation
         }),
       },
       5, // max retries
@@ -169,32 +171,28 @@ The floor plan should:
     const imageData = await imageResponse.json();
     console.log("Lovable AI response received:", JSON.stringify(imageData).slice(0, 500));
 
-    // Extract image from Lovable AI response (OpenAI-compatible format)
+    // Extract image from Lovable AI response
+    // With modalities: ["image", "text"], images are in message.images array
     let imageUrl = "";
     let textContent = "";
     
-    const content = imageData.choices?.[0]?.message?.content;
+    const message = imageData.choices?.[0]?.message;
     
-    if (typeof content === "string") {
-      // Check if content contains base64 image data
-      const base64Match = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
-      if (base64Match) {
-        imageUrl = base64Match[0];
+    // Images are returned in the images array when using modalities
+    if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
+      const firstImage = message.images[0];
+      if (firstImage?.image_url?.url) {
+        imageUrl = firstImage.image_url.url;
       }
-      textContent = content.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '').trim();
-    } else if (Array.isArray(content)) {
-      // Handle array format with image_url objects
-      for (const item of content) {
-        if (item.type === "image_url" && item.image_url?.url) {
-          imageUrl = item.image_url.url;
-        } else if (item.type === "text") {
-          textContent = item.text || "";
-        }
-      }
+    }
+    
+    // Text content is in the content field
+    if (typeof message?.content === "string") {
+      textContent = message.content;
     }
 
     if (!imageUrl) {
-      console.error("No image in response:", JSON.stringify(imageData));
+      console.error("No image in response:", JSON.stringify(imageData).slice(0, 1000));
       return new Response(JSON.stringify({ error: "No image generated. Please try again." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
