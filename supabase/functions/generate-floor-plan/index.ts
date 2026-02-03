@@ -48,8 +48,8 @@ function delay(ms: number): Promise<void> {
 async function fetchWithRetry(
   url: string, 
   options: RequestInit, 
-  maxRetries: number = 5,
-  initialDelay: number = 2000
+  maxRetries: number = 3,
+  initialDelay: number = 1000
 ): Promise<Response> {
   let lastError: Error | null = null;
   
@@ -58,7 +58,6 @@ async function fetchWithRetry(
       const response = await fetch(url, options);
       
       if (response.status === 429) {
-        // Rate limited - wait and retry with exponential backoff
         const waitTime = initialDelay * Math.pow(2, attempt);
         console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
         await delay(waitTime);
@@ -85,10 +84,9 @@ serve(async (req) => {
   try {
     const { plotSize, rooms, style, additionalNotes, userId } = await req.json();
     
-    // Use Lovable AI gateway (automatically provisioned)
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured. Please ensure workspace AI credits are available.");
+      throw new Error("LOVABLE_API_KEY is not configured.");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -100,137 +98,42 @@ serve(async (req) => {
     const plotWidthMeters = plotSize.width * unitMultiplier;
     const plotDepthMeters = plotSize.length * unitMultiplier;
 
-    // Build detailed prompt for floor plan image generation
+    // Build prompt for room coordinate generation (NO image generation - saves credits)
     const roomsList = rooms.map((room: { name: string; size: string; priority: string }) => 
       `${room.name} (${room.size} size, ${room.priority})`
     ).join(", ");
 
-    const imagePrompt = `Create a professional 2D architectural floor plan blueprint image. 
-    
-Specifications:
-- Plot size: ${plotSize.width} x ${plotSize.length} ${plotSize.unit}
+    console.log("Generating room layout with AI (text-only, no image)...");
+
+    const coordsPrompt = `You are an architectural AI that creates optimal room layouts.
+
+Given the floor plan specifications:
+- Plot size: ${plotWidthMeters.toFixed(1)}m x ${plotDepthMeters.toFixed(1)}m
 - Rooms: ${roomsList}
 - Style: ${style}
 ${additionalNotes ? `- Additional requirements: ${additionalNotes}` : ""}
 
-The floor plan should:
-- Be a clean, professional top-down 2D architectural blueprint
-- Show room layouts with walls, doors, and windows clearly marked
-- Include room labels with dimensions
-- Use a blue/white blueprint color scheme
-- Show furniture placement suggestions
-- Include a scale indicator
-- Look like a professional architect's floor plan drawing`;
-
-    console.log("Generating floor plan image with Lovable AI...");
-
-    // Generate floor plan image using Lovable AI Gateway
-    // CRITICAL: Must include modalities: ["image", "text"] for image generation
-    const imageResponse = await fetchWithRetry(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-pro-image-preview",
-          messages: [
-            { role: "user", content: imagePrompt }
-          ],
-          modalities: ["image", "text"], // Required for image generation
-        }),
-      },
-      5, // max retries
-      3000 // initial delay 3 seconds
-    );
-
-    if (!imageResponse.ok) {
-      const errorText = await imageResponse.text();
-      console.error("Gemini API error:", imageResponse.status, errorText);
-      
-      if (imageResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "API is busy. Please wait a moment and try again." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (imageResponse.status === 403) {
-        return new Response(JSON.stringify({ error: "Invalid API key. Please check your Gemini API key in Settings." }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: "Failed to generate floor plan image. Please try again." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const imageData = await imageResponse.json();
-    console.log("Lovable AI response received:", JSON.stringify(imageData).slice(0, 500));
-
-    // Extract image from Lovable AI response
-    // With modalities: ["image", "text"], images are in message.images array
-    let imageUrl = "";
-    let textContent = "";
-    
-    const message = imageData.choices?.[0]?.message;
-    
-    // Images are returned in the images array when using modalities
-    if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
-      const firstImage = message.images[0];
-      if (firstImage?.image_url?.url) {
-        imageUrl = firstImage.image_url.url;
-      }
-    }
-    
-    // Text content is in the content field
-    if (typeof message?.content === "string") {
-      textContent = message.content;
-    }
-
-    if (!imageUrl) {
-      console.error("No image in response:", JSON.stringify(imageData).slice(0, 1000));
-      return new Response(JSON.stringify({ error: "No image generated. Please try again." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Wait a bit before making the second API call to avoid rate limits
-    await delay(2000);
-
-    // Now generate room coordinates using AI
-    const coordsPrompt = `You are an architectural AI that converts room specifications into 3D coordinates for visualization.
-
-Given the following floor plan specifications:
-- Plot size: ${plotWidthMeters.toFixed(1)}m x ${plotDepthMeters.toFixed(1)}m
-- Rooms: ${JSON.stringify(rooms)}
-
-Generate realistic 3D room coordinates that would represent a well-designed floor plan. Each room needs:
+Generate 3D room coordinates for a well-designed floor plan. Each room needs:
 - name: room name
-- width: room width in meters (based on size: small=2-3m, medium=3-5m, large=5-7m)
-- depth: room depth in meters (similar to width)
+- width: room width in meters (small=2-3m, medium=3-5m, large=5-7m)
+- depth: room depth in meters
 - height: always 3 meters
-- position: [x, y, z] where y is always height/2 (1.5), and x,z should position rooms logically without overlapping
+- position: [x, y, z] where y=1.5 (half height), x,z position rooms logically
 
-Important:
-- Rooms should not overlap
-- Rooms should be arranged in a logical house layout
-- Essential rooms (like living room, kitchen) should be central
-- Bedrooms should be grouped together
-- Keep all rooms within the plot boundaries
-- The center of the plot is at coordinates [0, 0, 0]
+Design rules:
+- Rooms must NOT overlap
+- Logical house layout with good traffic flow
+- Essential rooms (living, kitchen) central or near entrance
+- Bedrooms grouped together, away from noisy areas
+- Keep all rooms within plot boundaries (center is [0, 0, 0])
 
-Respond ONLY with a valid JSON array of room objects. No explanation, just the JSON array.
-Example format:
-[{"name":"Living Room","width":6,"depth":5,"height":3,"position":[-3,1.5,0]},{"name":"Kitchen","width":4,"depth":4,"height":3,"position":[3,1.5,-2]}]`;
+Respond ONLY with a valid JSON array. No explanation.
+Example: [{"name":"Living Room","width":6,"depth":5,"height":3,"position":[-3,1.5,0]}]`;
 
     let roomCoordinates: RoomCoordinates[] = [];
 
     try {
+      // Use gemini-2.5-flash-lite - cheapest model for text-only
       const coordsResponse = await fetchWithRetry(
         "https://ai.gateway.lovable.dev/v1/chat/completions",
         {
@@ -240,21 +143,35 @@ Example format:
             "Authorization": `Bearer ${LOVABLE_API_KEY}`,
           },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              { role: "user", content: coordsPrompt }
-            ],
+            model: "google/gemini-2.5-flash-lite",
+            messages: [{ role: "user", content: coordsPrompt }],
           }),
         },
-        3, // fewer retries for coordinates
-        2000
+        3,
+        1000
       );
 
-      if (coordsResponse.ok) {
+      if (!coordsResponse.ok) {
+        const errorText = await coordsResponse.text();
+        console.error("AI API error:", coordsResponse.status, errorText);
+        
+        if (coordsResponse.status === 429) {
+          return new Response(JSON.stringify({ error: "API is busy. Please wait and try again." }), {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (coordsResponse.status === 402) {
+          return new Response(JSON.stringify({ error: "AI credits exhausted. Add credits in Workspace Settings." }), {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        // Fall through to use fallback
+      } else {
         const coordsData = await coordsResponse.json();
         const coordsText = coordsData.choices?.[0]?.message?.content || "";
         
-        // Extract JSON from response (handle markdown code blocks)
         const jsonMatch = coordsText.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const parsedRooms = JSON.parse(jsonMatch[0]);
@@ -266,16 +183,16 @@ Example format:
             position: room.position || [0, 1.5, 0],
             color: getRoomColor(room.name)
           }));
-          console.log("Generated room coordinates:", roomCoordinates.length, "rooms");
+          console.log("AI generated", roomCoordinates.length, "rooms");
         }
       }
     } catch (parseError) {
-      console.error("Failed to get room coordinates, using fallback:", parseError);
+      console.error("AI generation failed, using fallback:", parseError);
     }
 
-    // Fallback: generate simple coordinates if AI failed
+    // Fallback: algorithmic layout if AI failed
     if (roomCoordinates.length === 0) {
-      console.log("Using fallback room coordinate generation");
+      console.log("Using fallback algorithmic layout");
       const gridSize = Math.ceil(Math.sqrt(rooms.length));
       const cellWidth = plotWidthMeters / gridSize;
       const cellDepth = plotDepthMeters / gridSize;
@@ -300,54 +217,7 @@ Example format:
       });
     }
 
-    // Extract and upload image
-    const base64Match = imageUrl.match(/^data:image\/(\w+);base64,(.+)$/);
-    if (!base64Match) {
-      console.error("Invalid image data format");
-      return new Response(JSON.stringify({ error: "Invalid image format received" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const imageType = base64Match[1];
-    const base64Data = base64Match[2];
-    
-    // Convert base64 to Uint8Array
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileName = `${userId}/${timestamp}-floor-plan.${imageType}`;
-
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from("floor-plans")
-      .upload(fileName, bytes, {
-        contentType: `image/${imageType}`,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      return new Response(JSON.stringify({ error: "Failed to save floor plan image" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Get public URL
-    const { data: publicUrlData } = supabase.storage
-      .from("floor-plans")
-      .getPublicUrl(fileName);
-
-    console.log("Floor plan image saved:", publicUrlData.publicUrl);
-
-    // Save project to database
+    // Save project to database (no image upload needed - rendered client-side)
     const projectName = `Floor Plan - ${new Date().toLocaleDateString()}`;
     const { data: projectData, error: projectError } = await supabase
       .from("floor_plan_projects")
@@ -357,7 +227,7 @@ Example format:
         plot_width: plotWidthMeters,
         plot_depth: plotDepthMeters,
         rooms: roomCoordinates,
-        image_url: publicUrlData.publicUrl,
+        image_url: null, // Image rendered client-side now
         style: style,
         notes: additionalNotes
       })
@@ -367,17 +237,15 @@ Example format:
     if (projectError) {
       console.error("Failed to save project:", projectError);
     } else {
-      console.log("Project saved with ID:", projectData?.id);
+      console.log("Project saved:", projectData?.id);
     }
 
     return new Response(JSON.stringify({ 
-      imageUrl: publicUrlData.publicUrl,
-      description: textContent,
-      fileName: fileName,
       projectId: projectData?.id,
       rooms: roomCoordinates,
       plotWidth: plotWidthMeters,
-      plotDepth: plotDepthMeters
+      plotDepth: plotDepthMeters,
+      description: `Generated ${roomCoordinates.length} rooms for ${plotWidthMeters.toFixed(1)}m x ${plotDepthMeters.toFixed(1)}m plot`
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Sidebar from "@/components/layout/Sidebar";
@@ -10,12 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, X, Sparkles, Loader2, Home, Maximize2, Download, ZoomIn, Box } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Plus, X, Sparkles, Loader2, Home, Maximize2, Download, Box } from "lucide-react";
+import FloorPlanCanvas from "@/components/floor-plan/FloorPlanCanvas";
 
 interface Room {
   id: string;
@@ -40,13 +36,11 @@ interface RoomCoordinates {
 }
 
 interface GeneratedPlan {
-  imageUrl: string;
   description: string;
-  fileName: string;
   projectId?: string;
-  rooms?: RoomCoordinates[];
-  plotWidth?: number;
-  plotDepth?: number;
+  rooms: RoomCoordinates[];
+  plotWidth: number;
+  plotDepth: number;
 }
 
 const STYLE_OPTIONS = [
@@ -150,23 +144,19 @@ export default function FloorPlanGenerator() {
     }
   };
 
-  const downloadImage = async () => {
-    if (!generatedPlan?.imageUrl) return;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const downloadImage = () => {
+    if (!generatedPlan) return;
     
-    try {
-      const response = await fetch(generatedPlan.imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `floor-plan-${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+    // Get the canvas from FloorPlanCanvas and download
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = `floor-plan-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
       toast.success("Floor plan downloaded!");
-    } catch {
-      toast.error("Failed to download image");
     }
   };
 
@@ -437,36 +427,21 @@ export default function FloorPlanGenerator() {
                   {isGenerating && (
                     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                       <Loader2 className="h-12 w-12 animate-spin text-blueprint mb-4" />
-                      <p>Creating your floor plan image...</p>
-                      <p className="text-sm mt-2">This may take up to 30 seconds</p>
+                      <p>Generating room layout...</p>
+                      <p className="text-sm mt-2">This usually takes a few seconds</p>
                     </div>
                   )}
                   
                   {generatedPlan ? (
                     <div className="space-y-4">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <div className="relative group cursor-pointer rounded-lg overflow-hidden border border-border">
-                            <img 
-                              src={generatedPlan.imageUrl} 
-                              alt="Generated Floor Plan" 
-                              className="w-full h-auto"
-                            />
-                            <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 rounded-full p-3">
-                                <ZoomIn className="h-6 w-6 text-foreground" />
-                              </div>
-                            </div>
-                          </div>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-4xl w-full">
-                          <img 
-                            src={generatedPlan.imageUrl} 
-                            alt="Generated Floor Plan - Full Size" 
-                            className="w-full h-auto"
-                          />
-                        </DialogContent>
-                      </Dialog>
+                      {/* Canvas-based floor plan rendering */}
+                      <div className="rounded-lg overflow-hidden border border-border" style={{ height: "400px" }}>
+                        <FloorPlanCanvas 
+                          rooms={generatedPlan.rooms} 
+                          plotWidth={generatedPlan.plotWidth} 
+                          plotDepth={generatedPlan.plotDepth}
+                        />
+                      </div>
 
                       {generatedPlan.description && (
                         <p className="text-sm text-muted-foreground">{generatedPlan.description}</p>
