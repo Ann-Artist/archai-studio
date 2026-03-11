@@ -121,18 +121,25 @@ serve(async (req) => {
     let imageUrl = "";
     let description = "";
     
-    // Lovable AI returns data in OpenAI-compatible format
-    const content = data.choices?.[0]?.message?.content;
+    // Check for images array first (Lovable AI gateway format)
+    const message = data.choices?.[0]?.message;
+    if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
+      imageUrl = message.images[0];
+    }
     
+    // Get text content for description
+    const content = message?.content;
     if (typeof content === "string") {
-      const base64Match = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
-      if (base64Match) {
-        imageUrl = base64Match[0];
+      if (!imageUrl) {
+        const base64Match = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
+        if (base64Match) {
+          imageUrl = base64Match[0];
+        }
       }
       description = content.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '').trim();
     } else if (Array.isArray(content)) {
       for (const item of content) {
-        if (item.type === "image_url" && item.image_url?.url) {
+        if (!imageUrl && item.type === "image_url" && item.image_url?.url) {
           imageUrl = item.image_url.url;
         } else if (item.type === "text") {
           description = item.text || "";
