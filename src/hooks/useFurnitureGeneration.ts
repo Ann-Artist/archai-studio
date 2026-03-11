@@ -41,9 +41,15 @@ export function useFurnitureGeneration() {
         throw new Error(data?.error || "Generation failed");
       }
 
+      // Extract the actual URL string from the response
+      let imageUrl = data.imageUrl;
+      if (typeof imageUrl === "object" && imageUrl?.image_url?.url) {
+        imageUrl = imageUrl.image_url.url;
+      }
+
       return {
         id: `${params.roomType}-${params.category}-${Date.now()}`,
-        imageUrl: data.imageUrl,
+        imageUrl,
         description: data.description,
         metadata: data.metadata,
       };
